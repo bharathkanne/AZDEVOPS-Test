@@ -163,7 +163,7 @@ stages:
     displayName: 'Stage 2: Optional ACR Image Audit'
     dependsOn: CI_Stage
     condition: succeeded()
-    trigger: manual
+    trigger: automatic
     isSkippable: true
     lockBehavior: sequential
     variables:
