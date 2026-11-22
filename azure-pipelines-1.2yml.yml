@@ -16,7 +16,7 @@ pool:
 
 variables:
   # --- 1. UPDATE THESE TWO VALUES TO MATCH YOUR ACR ---
-  acrServiceConnection: 'azrrdj.io'   # Exact name of your Service Connection in Azure DevOps
+  acrServiceConnection: 'azcrrdj'   # Exact name of your Service Connection in Azure DevOps
   acrLoginServer: 'azuredevopsrdj.azurecr.io'        # Exact Login server from Azure Portal -> ACR -> Overview
   # --- 2. IMAGE & CONTAINER SETTINGS ---
   imageRepository: 'fleet-app'
