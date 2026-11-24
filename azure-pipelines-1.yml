@@ -1,0 +1,295 @@
+trigger:
+  branches:
+    include:
+      - main
+pr:
+  branches:
+    include:
+      - main
+
+resources:
+  - repo: self
+
+pool:
+  name: default
+
+variables:
+  # --- ACR Settings ---
+  acrServiceConnection: 'azcrrdj'
+  acrLoginServer: 'azuredevopsrdj.azurecr.io'
+  imageRepository: 'fleet-app'
+  tag: '$(Build.BuildId)'
+  FULL_IMAGE: '$(acrLoginServer)/$(imageRepository):$(tag)'
+
+  # --- Azure Artifacts Feed Settings ---
+  artifactFeed: 'fleet-appv1/fleet-app-feed1'
+  universalPackageName: 'fleet-app-bundle'
+
+  # --- Container Ports ---
+  containerPort: '3000'
+  devHostPort: '3001'
+  prodHostPort: '3000'
+
+stages:
+  # ============================================================================
+  # STAGE 1: CI (Matrix Validation, ACR Push, Pipeline & Azure Artifacts)
+  # ============================================================================
+  - stage: CI_Stage
+    displayName: 'Stage 1: CI Build, ACR Push & Artifacts'
+    dependsOn: []
+    condition: succeeded()
+    trigger: automatic
+    isSkippable: false
+    lockBehavior: runLatest
+    variables:
+      dockerfileName: 'test.Dockerfile'
+    jobs:
+      - job: MatrixTestJob
+        displayName: 'Test Matrix in Isolated Container'
+        timeoutInMinutes: 20
+        workspace:
+          clean: outputs
+        variables:
+          CI: 'true'
+        strategy:
+          maxParallel: 2
+          matrix:
+            Node20_Env:
+              NODE_TARGET: '20'
+              TEST_SUITE: 'unit'
+            Node22_Env:
+              NODE_TARGET: '22'
+              TEST_SUITE: 'routing'
+        container: node:22-bookworm-slim
+        services:
+          redis: redis:7-alpine
+        steps:
+          - checkout: self
+            clean: true
+            displayName: 'Checkout Source Code'
+
+          - bash: |
+              set -e
+              echo "Running $(TEST_SUITE) tests on Node target $(NODE_TARGET)"
+              node -v
+              echo "##vso[task.setvariable variable=buildReady;isOutput=true]true"
+            name: EnvCheckStep
+            displayName: 'Bash: Check Runtime & Export Output Variable'
+            timeoutInMinutes: 5
+            env:
+              REDIS_HOST: 'redis'
+              TARGET_VERSION: '$(NODE_TARGET)'
+
+          - bash: |
+              node -e '
+                const pkg = require("./package.json");
+                console.log(`Validated package: ${pkg.name} (Type: ${pkg.type})`);
+              '
+            name: MetadataStep
+            displayName: 'Node: Validate package.json'
+            timeoutInMinutes: 3
+            continueOnError: true
+
+          - script: |
+              echo "Executing host-level check outside job container"
+              docker info --format '{{.ServerVersion}}'
+            name: HostCheckStep
+            displayName: 'Script (Host Target): Verify Host Docker Engine'
+            target: host
+            timeoutInMinutes: 5
+
+      - job: BuildAndPublishArtifactsJob
+        displayName: 'Push ACR Image & Publish Artifacts'
+        dependsOn: MatrixTestJob
+        condition: succeeded()
+        timeoutInMinutes: 30
+        workspace:
+          clean: all
+        variables:
+          DOCKER_BUILDKIT: '1'
+        steps:
+          - checkout: self
+            clean: true
+            displayName: 'Checkout Source Code'
+
+          - task: Docker@2
+            name: BuildAndPushTask
+            displayName: 'Task: Build & Push Image to ACR'
+            target: host
+            timeoutInMinutes: 20
+            retryCountOnTaskFailure: 1
+            inputs:
+              command: 'buildAndPush'
+              containerRegistry: '$(acrServiceConnection)'
+              repository: '$(imageRepository)'
+              Dockerfile: '$(dockerfileName)'
+              tags: |
+                $(tag)
+                latest
+
+          - bash: |
+              set -e
+              mkdir -p $(Build.ArtifactStagingDirectory)/release-bundle
+              cp package.json test.Dockerfile $(Build.ArtifactStagingDirectory)/release-bundle/
+              cat <<EOF > $(Build.ArtifactStagingDirectory)/release-bundle/image-manifest.json
+              {
+                "image": "$(FULL_IMAGE)",
+                "buildId": "$(Build.BuildId)",
+                "commit": "$(Build.SourceVersion)",
+                "branch": "$(Build.SourceBranchName)"
+              }
+              EOF
+            name: PrepareBundleStep
+            displayName: 'Bash: Prepare Release Bundle for Artifacts'
+
+          - task: PublishPipelineArtifact@1
+            name: PublishPipelineArtifactTask
+            displayName: 'Pipeline Artifact: Publish Release Bundle'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/release-bundle'
+              artifact: 'fleet-app-pipeline-artifact'
+              publishLocation: 'pipeline'
+
+          - task: UniversalPackages@0
+            name: PublishAzureArtifactTask
+            displayName: 'Azure Artifacts: Publish Universal Package'
+            condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              command: 'publish'
+              publishDirectory: '$(Build.ArtifactStagingDirectory)/release-bundle'
+              feedsToUsePublish: 'internal'
+              vstsFeedPublish: '$(artifactFeed)'
+              vstsFeedPackagePublish: '$(universalPackageName)'
+              versionOption: 'custom'
+              versionPublish: '1.0.$(Build.BuildId)'
+              packagePublishDescription: 'Release bundle and image manifest for fleet-app build $(Build.BuildId)'
+
+  # ============================================================================
+  # STAGE 2: ARTIFACT & IMAGE VERIFICATION
+  # ============================================================================
+  - stage: Artifact_Verification_Stage
+    displayName: 'Stage 2: Verify Pipeline Artifact & ACR Image'
+    dependsOn: CI_Stage
+    condition: succeeded()
+    isSkippable: true
+    lockBehavior: sequential
+    jobs:
+      - job: VerifyArtifactsJob
+        displayName: 'Download Pipeline Artifact & Inspect ACR Image'
+        timeoutInMinutes: 10
+        steps:
+          - checkout: none
+
+          - task: DownloadPipelineArtifact@2
+            name: DownloadPipelineArtifactTask
+            displayName: 'Pipeline Artifact: Download Release Bundle'
+            inputs:
+              buildType: 'current'
+              artifactName: 'fleet-app-pipeline-artifact'
+              targetPath: '$(Pipeline.Workspace)/downloaded-bundle'
+
+          - bash: |
+              ls -la $(Pipeline.Workspace)/downloaded-bundle
+              cat $(Pipeline.Workspace)/downloaded-bundle/image-manifest.json
+            name: VerifyBundleStep
+            displayName: 'Bash: Verify Downloaded Manifest'
+
+  # ============================================================================
+  # STAGE 3: CD - DEV ENVIRONMENT (Automatic Deployment on Port 3001)
+  # ============================================================================
+  - stage: Deploy_Dev_Stage
+    displayName: 'Stage 3: Deploy to Dev (Port 3001)'
+    dependsOn:
+      - CI_Stage
+      - Artifact_Verification_Stage
+    condition: and(succeeded('CI_Stage'), in(dependencies.Artifact_Verification_Stage.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    isSkippable: false
+    lockBehavior: sequential
+    jobs:
+      - deployment: DeployDevJob
+        displayName: 'Deploy Container to Dev Environment'
+        environment: 'Dev'
+        timeoutInMinutes: 15
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Deployment jobs automatically download 'fleet-app-pipeline-artifact' to $(Pipeline.Workspace)
+                - bash: |
+                    echo "Loaded manifest from auto-downloaded pipeline artifact:"
+                    cat $(Pipeline.Workspace)/fleet-app-pipeline-artifact/image-manifest.json
+                  displayName: 'Verify Auto-Downloaded Artifact Manifest'
+
+                - task: Docker@2
+                  displayName: 'Login to ACR'
+                  inputs:
+                    command: 'login'
+                    containerRegistry: '$(acrServiceConnection)'
+
+                - bash: |
+                    set -e
+                    docker pull $(FULL_IMAGE)
+                    docker rm -f fleet-app-dev 2>/dev/null || true
+                    docker run -d \
+                      --name fleet-app-dev \
+                      --restart unless-stopped \
+                      -e NODE_ENV=development \
+                      -p $(devHostPort):$(containerPort) \
+                      $(FULL_IMAGE)
+                    sleep 5
+                    curl -f -I http://localhost:$(devHostPort)
+                  displayName: 'Deploy & Health-Check Dev Container (3001)'
+
+                - task: Docker@2
+                  displayName: 'Logout from ACR'
+                  condition: always()
+                  inputs:
+                    command: 'logout'
+                    containerRegistry: '$(acrServiceConnection)'
+
+  # ============================================================================
+  # STAGE 4: CD - PROD ENVIRONMENT (Paused Until Manual Approval Check Passes)
+  # ============================================================================
+  - stage: Deploy_Prod_Stage
+    displayName: 'Stage 4: Deploy to Prod (Port 3000)'
+    dependsOn: Deploy_Dev_Stage
+    condition: succeeded()
+    isSkippable: false
+    lockBehavior: sequential
+    jobs:
+      - deployment: DeployProdJob
+        displayName: 'Deploy Container to Prod Environment'
+        environment: 'Prod'
+        timeoutInMinutes: 15
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: Docker@2
+                  displayName: 'Login to ACR'
+                  inputs:
+                    command: 'login'
+                    containerRegistry: '$(acrServiceConnection)'
+
+                - bash: |
+                    set -e
+                    echo "Deploying approved immutable image $(FULL_IMAGE) to Production..."
+                    docker pull $(FULL_IMAGE)
+                    docker rm -f fleet-app-prod 2>/dev/null || true
+                    docker run -d \
+                      --name fleet-app-prod \
+                      --restart unless-stopped \
+                      -e NODE_ENV=production \
+                      -p $(prodHostPort):$(containerPort) \
+                      $(FULL_IMAGE)
+                    sleep 5
+                    docker ps --filter "name=fleet-app-"
+                    curl -f -I http://localhost:$(prodHostPort)
+                  displayName: 'Deploy & Health-Check Prod Container (3000)'
+
+                - task: Docker@2
+                  displayName: 'Logout from ACR'
+                  condition: always()
+                  inputs:
+                    command: 'logout'
+                    containerRegistry: '$(acrServiceConnection)'
