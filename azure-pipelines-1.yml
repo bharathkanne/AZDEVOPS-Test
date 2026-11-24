@@ -259,7 +259,9 @@ stages:
     jobs:
       - deployment: DeployProdJob
         displayName: 'Deploy Container to Prod Environment'
-        environment: 'Prod'
+        environment:
+          name: 'Prod'
+          resourceType: VirtualMachine
         timeoutInMinutes: 15
         strategy:
           runOnce:
