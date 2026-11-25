@@ -1,1 +1,191 @@
 
+parameters:
+  - name: vmImage
+    type: string
+    default: 'ubuntu-latest'
+  - name: acrServiceConnection
+    type: string
+  - name: imageRepository
+    type: string
+  - name: fullImage
+    type: string
+  - name: tag
+    type: string
+  - name: dockerfileName
+    type: string
+    default: 'test.Dockerfile'
+  - name: artifactFeed
+    type: string
+  - name: universalPackageName
+    type: string
+
+stages:
+  # ============================================================================
+  # STAGE 1: CI (Matrix Validation, ACR Push, Pipeline & Azure Artifacts)
+  # ============================================================================
+  - stage: CI_Stage
+    displayName: 'Stage 1: CI Build, ACR Push & Artifacts'
+    dependsOn: []
+    condition: succeeded()
+    trigger: automatic
+    isSkippable: false
+    lockBehavior: runLatest
+    pool:
+      vmImage: ${{ parameters.vmImage }}
+    variables:
+      - name: dockerfileName
+        value: ${{ parameters.dockerfileName }}
+    jobs:
+      - job: MatrixTestJob
+        displayName: 'Test Matrix in Isolated Container'
+        timeoutInMinutes: 20
+        workspace:
+          clean: outputs
+        variables:
+          - name: CI
+            value: 'true'
+        strategy:
+          maxParallel: 2
+          matrix:
+            Node20_Env:
+              NODE_TARGET: '20'
+              TEST_SUITE: 'unit'
+            Node22_Env:
+              NODE_TARGET: '22'
+              TEST_SUITE: 'routing'
+        container: node:22-bookworm-slim
+        services:
+          redis: redis:7-alpine
+        steps:
+          - checkout: self
+            clean: true
+            displayName: 'Checkout Source Code'
+
+          - bash: |
+              set -e
+              echo "Running $(TEST_SUITE) tests on Node target $(NODE_TARGET)"
+              node -v
+              echo "##vso[task.setvariable variable=buildReady;isOutput=true]true"
+            name: EnvCheckStep
+            displayName: 'Bash: Check Runtime & Export Output Variable'
+            timeoutInMinutes: 5
+            env:
+              REDIS_HOST: 'redis'
+              TARGET_VERSION: '$(NODE_TARGET)'
+
+          - bash: |
+              node -e '
+                const pkg = require("./package.json");
+                console.log(`Validated package: ${pkg.name} (Type: ${pkg.type})`);
+              '
+            name: MetadataStep
+            displayName: 'Node: Validate package.json'
+            timeoutInMinutes: 3
+            continueOnError: true
+
+          - script: |
+              echo "Executing host-level check outside job container"
+              docker info --format '{{.ServerVersion}}'
+            name: HostCheckStep
+            displayName: 'Script (Host Target): Verify Host Docker Engine'
+            target: host
+            timeoutInMinutes: 5
+
+      - job: BuildAndPublishArtifactsJob
+        displayName: 'Push ACR Image & Publish Artifacts'
+        dependsOn: MatrixTestJob
+        condition: succeeded()
+        timeoutInMinutes: 30
+        workspace:
+          clean: all
+        variables:
+          - name: DOCKER_BUILDKIT
+            value: '1'
+        steps:
+          - checkout: self
+            clean: true
+            displayName: 'Checkout Source Code'
+
+          - task: Docker@2
+            name: BuildAndPushTask
+            displayName: 'Task: Build & Push Image to ACR'
+            target: host
+            timeoutInMinutes: 20
+            retryCountOnTaskFailure: 1
+            inputs:
+              command: 'buildAndPush'
+              containerRegistry: ${{ parameters.acrServiceConnection }}
+              repository: ${{ parameters.imageRepository }}
+              Dockerfile: '$(dockerfileName)'
+              tags: |
+                ${{ parameters.tag }}
+                latest
+
+          - bash:|
+              set -e
+              mkdir -p $(Build.ArtifactStagingDirectory)/release-bundle
+              cp package.json $(dockerfileName) $(Build.ArtifactStagingDirectory)/release-bundle/
+              cat <<EOF > $(Build.ArtifactStagingDirectory)/release-bundle/image-manifest.json
+              {
+                "image": "${{ parameters.fullImage }}",
+                "buildId": "$(Build.BuildId)",
+                "commit": "$(Build.SourceVersion)",
+                "branch": "$(Build.SourceBranchName)"
+              }
+              EOF
+            name: PrepareBundleStep
+            displayName: 'Bash: Prepare Release Bundle for Artifacts'
+
+          - task: PublishPipelineArtifact@1
+            name: PublishPipelineArtifactTask
+            displayName: 'Pipeline Artifact: Publish Release Bundle'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/release-bundle'
+              artifact: 'fleet-app-pipeline-artifact'
+              publishLocation: 'pipeline'
+
+          - task: UniversalPackages@0
+            name: PublishAzureArtifactTask
+            displayName: 'Azure Artifacts: Publish Universal Package'
+            condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              command: 'publish'
+              publishDirectory: '$(Build.ArtifactStagingDirectory)/release-bundle'
+              feedsToUsePublish: 'internal'
+              vstsFeedPublish: ${{ parameters.artifactFeed }}
+              vstsFeedPackagePublish: ${{ parameters.universalPackageName }}
+              versionOption: 'custom'
+              versionPublish: '1.0.$(Build.BuildId)'
+              packagePublishDescription: 'Release bundle and image manifest for ${{ parameters.imageRepository }} build $(Build.BuildId)'
+
+  # ============================================================================
+  # STAGE 2: ARTIFACT & IMAGE VERIFICATION
+  # ============================================================================
+  - stage: Artifact_Verification_Stage
+    displayName: 'Stage 2: Verify Pipeline Artifact & ACR Image'
+    dependsOn: CI_Stage
+    condition: succeeded()
+    isSkippable: true
+    lockBehavior: sequential
+    pool:
+      vmImage: ${{ parameters.vmImage }}
+    jobs:
+      - job: VerifyArtifactsJob
+        displayName: 'Download Pipeline Artifact & Inspect ACR Image'
+        timeoutInMinutes: 10
+        steps:
+          - checkout: none
+
+          - task: DownloadPipelineArtifact@2
+            name: DownloadPipelineArtifactTask
+            displayName: 'Pipeline Artifact: Download Release Bundle'
+            inputs:
+              buildType: 'current'
+              artifactName: 'fleet-app-pipeline-artifact'
+              targetPath: '$(Pipeline.Workspace)/downloaded-bundle'
+
+          - bash: |
+              ls -la $(Pipeline.Workspace)/downloaded-bundle
+              cat $(Pipeline.Workspace)/downloaded-bundle/image-manifest.json
+            name: VerifyBundleStep
+            displayName: 'Bash: Verify Downloaded Manifest'
