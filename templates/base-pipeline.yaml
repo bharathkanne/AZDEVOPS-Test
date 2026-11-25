@@ -31,7 +31,15 @@ parameters:
   - name: prodUseVirtualMachine
     type: boolean
     default: true
-
+parameters:
+  # ... keep your existing parameters ...
+  - name: runSecurityScan
+    type: boolean
+    default: true
+  - name: securityBreakBuild
+    type: boolean
+    default: false
+    
 variables:
   - name: tag
     value: '$(Build.BuildId)'
@@ -71,7 +79,8 @@ stages:
       hostPort: ${{ parameters.devHostPort }}
       containerPort: ${{ parameters.containerPort }}
       verifyArtifact: true
-
+      runSecurityScan: ${{ parameters.runSecurityScan }}
+      securityBreakBuild: ${{ parameters.securityBreakBuild }}
   # Include Prod Deployment Stage (Targets Prod VM + Manual Approval Gate)
   - template: deploy-template.yml
     parameters:
