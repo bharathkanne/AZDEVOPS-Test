@@ -121,7 +121,7 @@ stages:
                 ${{ parameters.tag }}
                 latest
 
-          - bash:|
+          - bash: |
               set -e
               mkdir -p $(Build.ArtifactStagingDirectory)/release-bundle
               cp package.json $(dockerfileName) $(Build.ArtifactStagingDirectory)/release-bundle/
