@@ -31,8 +31,6 @@ parameters:
   - name: prodUseVirtualMachine
     type: boolean
     default: true
-parameters:
-  # ... keep your existing parameters ...
   - name: runSecurityScan
     type: boolean
     default: true
