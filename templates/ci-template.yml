@@ -18,7 +18,12 @@ parameters:
     type: string
   - name: universalPackageName
     type: string
-
+  - name: runSecurityScan
+    type: boolean
+    default: true
+  - name: securityBreakBuild
+    type: boolean
+    default: false
 stages:
   # ============================================================================
   # STAGE 1: CI (Matrix Validation, ACR Push, Pipeline & Azure Artifacts)
@@ -120,7 +125,16 @@ stages:
               tags: |
                 ${{ parameters.tag }}
                 latest
-
+            - ${{ if eq(parameters.runSecurityScan, true) }}:
+              - task: MicrosoftSecurityDevOps@1
+                  name: RunMSDOTask
+                  displayName: 'Security: MSDO Scan (Trivy, Checkov, ESLint)'
+                  timeoutInMinutes: 15
+                  inputs:
+                    categories: 'code,iac,containers'
+                    tools: 'trivy,checkov,eslint'
+                    break: ${{ parameters.securityBreakBuild }}
+                    
           - bash: |
               set -e
               mkdir -p $(Build.ArtifactStagingDirectory)/release-bundle
