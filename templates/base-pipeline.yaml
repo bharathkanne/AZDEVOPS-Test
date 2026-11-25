@@ -1,1 +1,93 @@
+parameters:
+  - name: vmImage
+    type: string
+    default: 'ubuntu-latest'
+  - name: acrServiceConnection
+    type: string
+  - name: acrLoginServer
+    type: string
+  - name: imageRepository
+    type: string
+  - name: dockerfileName
+    type: string
+    default: 'test.Dockerfile'
+  - name: artifactFeed
+    type: string
+  - name: universalPackageName
+    type: string
+  - name: devVariableGroup
+    type: string
+  - name: prodVariableGroup
+    type: string
+  - name: containerPort
+    type: string
+    default: '3000'
+  - name: devHostPort
+    type: string
+    default: '3001'
+  - name: prodHostPort
+    type: string
+    default: '3000'
+  - name: prodUseVirtualMachine
+    type: boolean
+    default: true
 
+variables:
+  - name: tag
+    value: '$(Build.BuildId)'
+  - name: FULL_IMAGE
+    value: '${{ parameters.acrLoginServer }}/${{ parameters.imageRepository }}:$(tag)'
+
+stages:
+  # Include Standardized CI & Verification Stages
+  - template: ci-template.yml
+    parameters:
+      vmImage: ${{ parameters.vmImage }}
+      acrServiceConnection: ${{ parameters.acrServiceConnection }}
+      imageRepository: ${{ parameters.imageRepository }}
+      fullImage: '$(FULL_IMAGE)'
+      tag: '$(tag)'
+      dockerfileName: ${{ parameters.dockerfileName }}
+      artifactFeed: ${{ parameters.artifactFeed }}
+      universalPackageName: ${{ parameters.universalPackageName }}
+
+  # Include Dev Deployment Stage (Microsoft-hosted ubuntu-latest)
+  - template: deploy-template.yml
+    parameters:
+      stageName: 'Deploy_Dev_Stage'
+      displayName: 'Stage 3: Deploy to Dev (Port ${{ parameters.devHostPort }})'
+      dependsOn:
+        - CI_Stage
+        - Artifact_Verification_Stage
+      condition: and(succeeded('CI_Stage'), in(dependencies.Artifact_Verification_Stage.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+      environmentName: 'Dev'
+      useVirtualMachine: false
+      vmImage: ${{ parameters.vmImage }}
+      variableGroup: ${{ parameters.devVariableGroup }}
+      acrServiceConnection: ${{ parameters.acrServiceConnection }}
+      fullImage: '$(FULL_IMAGE)'
+      containerName: '${{ parameters.imageRepository }}-dev'
+      nodeEnv: 'development'
+      hostPort: ${{ parameters.devHostPort }}
+      containerPort: ${{ parameters.containerPort }}
+      verifyArtifact: true
+
+  # Include Prod Deployment Stage (Targets Prod VM + Manual Approval Gate)
+  - template: deploy-template.yml
+    parameters:
+      stageName: 'Deploy_Prod_Stage'
+      displayName: 'Stage 4: Deploy to Prod VM (Port ${{ parameters.prodHostPort }})'
+      dependsOn:
+        - Deploy_Dev_Stage
+      condition: succeeded()
+      environmentName: 'Prod'
+      useVirtualMachine: ${{ parameters.prodUseVirtualMachine }}
+      vmImage: ${{ parameters.vmImage }}
+      variableGroup: ${{ parameters.prodVariableGroup }}
+      acrServiceConnection: ${{ parameters.acrServiceConnection }}
+      fullImage: '$(FULL_IMAGE)'
+      containerName: '${{ parameters.imageRepository }}-prod'
+      nodeEnv: 'production'
+      hostPort: ${{ parameters.prodHostPort }}
+      containerPort: ${{ parameters.containerPort }}
+      verifyArtifact: false
