@@ -1,4 +1,3 @@
-
 parameters:
   - name: vmImage
     type: string
@@ -24,9 +23,10 @@ parameters:
   - name: securityBreakBuild
     type: boolean
     default: false
+
 stages:
   # ============================================================================
-  # STAGE 1: CI (Matrix Validation, ACR Push, Pipeline & Azure Artifacts)
+  # STAGE 1: CI (Matrix Validation, ACR Push, Security Scan & Artifacts)
   # ============================================================================
   - stage: CI_Stage
     displayName: 'Stage 1: CI Build, ACR Push & Artifacts'
@@ -125,16 +125,17 @@ stages:
               tags: |
                 ${{ parameters.tag }}
                 latest
-            - ${{ if eq(parameters.runSecurityScan, true) }}:
-              - task: MicrosoftSecurityDevOps@1
-                  name: RunMSDOTask
-                  displayName: 'Security: MSDO Scan (Trivy, Checkov, ESLint)'
-                  timeoutInMinutes: 15
-                  inputs:
-                    categories: 'code,iac,containers'
-                    tools: 'trivy,checkov,eslint'
-                    break: ${{ parameters.securityBreakBuild }}
-                    
+
+          - ${{ if eq(parameters.runSecurityScan, true) }}:
+            - task: MicrosoftSecurityDevOps@1
+              name: RunMSDOTask
+              displayName: 'Security: MSDO Scan (Trivy, Checkov, ESLint)'
+              timeoutInMinutes: 15
+              inputs:
+                categories: 'code,IaC,containers'
+                tools: 'trivy,checkov,eslint'
+                break: ${{ parameters.securityBreakBuild }}
+
           - bash: |
               set -e
               mkdir -p $(Build.ArtifactStagingDirectory)/release-bundle
@@ -197,7 +198,8 @@ stages:
               buildType: 'current'
               artifactName: 'fleet-app-pipeline-artifact'
               targetPath: '$(Pipeline.Workspace)/downloaded-bundle'
-           - ${{ if eq(parameters.runSecurityScan, true) }}:
+
+          - ${{ if eq(parameters.runSecurityScan, true) }}:
             - task: DownloadPipelineArtifact@2
               name: DownloadSecurityLogsTask
               displayName: 'Security Artifact: Download SARIF Logs'
@@ -205,6 +207,7 @@ stages:
                 buildType: 'current'
                 artifactName: 'CodeAnalysisLogs'
                 targetPath: '$(Pipeline.Workspace)/security-logs'
+
           - bash: |
               ls -la $(Pipeline.Workspace)/downloaded-bundle
               cat $(Pipeline.Workspace)/downloaded-bundle/image-manifest.json
