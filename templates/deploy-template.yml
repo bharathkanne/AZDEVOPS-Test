@@ -1,1 +1,103 @@
 
+parameters:
+  - name: stageName
+    type: string
+  - name: displayName
+    type: string
+  - name: dependsOn
+    type: object
+  - name: condition
+    type: string
+    default: 'succeeded()'
+  - name: environmentName
+    type: string
+  - name: useVirtualMachine
+    type: boolean
+    default: false
+  - name: vmImage
+    type: string
+    default: 'ubuntu-latest'
+  - name: variableGroup
+    type: string
+  - name: acrServiceConnection
+    type: string
+  - name: fullImage
+    type: string
+  - name: containerName
+    type: string
+  - name: nodeEnv
+    type: string
+  - name: hostPort
+    type: string
+  - name: containerPort
+    type: string
+    default: '3000'
+  - name: verifyArtifact
+    type: boolean
+    default: false
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: ${{ parameters.displayName }}
+    dependsOn: ${{ parameters.dependsOn }}
+    condition: ${{ parameters.condition }}
+    isSkippable: false
+    lockBehavior: sequential
+    ${{ if eq(parameters.useVirtualMachine, false) }}:
+      pool:
+        vmImage: ${{ parameters.vmImage }}
+    variables:
+      - group: ${{ parameters.variableGroup }}
+    jobs:
+      - deployment: DeployJob
+        displayName: 'Deploy Container to ${{ parameters.environmentName }}'
+        ${{ if eq(parameters.useVirtualMachine, true) }}:
+          environment:
+            name: ${{ parameters.environmentName }}
+            resourceType: VirtualMachine
+        ${{ else }}:
+          environment: ${{ parameters.environmentName }}
+        timeoutInMinutes: 15
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - ${{ if eq(parameters.verifyArtifact, true) }}:
+                  - bash: |
+                      echo "Loaded manifest from auto-downloaded pipeline artifact:"
+                      cat $(Pipeline.Workspace)/fleet-app-pipeline-artifact/image-manifest.json
+                    displayName: 'Verify Auto-Downloaded Artifact Manifest'
+
+                - task: Docker@2
+                  displayName: 'Login to ACR'
+                  inputs:
+                    command: 'login'
+                    containerRegistry: ${{ parameters.acrServiceConnection }}
+
+                - bash: |
+                    set -e
+                    echo "Deploying immutable image ${{ parameters.fullImage }} to ${{ parameters.environmentName }}..."
+                    docker pull ${{ parameters.fullImage }}
+                    docker rm -f ${{ parameters.containerName }} 2>/dev/null || true
+                    docker run -d \
+                      --name ${{ parameters.containerName }} \
+                      --restart unless-stopped \
+                      -e NODE_ENV=${{ parameters.nodeEnv }} \
+                      -e APP_SECRET="$MAPPED_APP_SECRET" \
+                      -e DB_CONNECTION_STRING="$MAPPED_DB_CONN" \
+                      -p ${{ parameters.hostPort }}:${{ parameters.containerPort }} \
+                      ${{ parameters.fullImage }}
+                    sleep 5
+                    docker ps --filter "name=${{ parameters.containerName }}"
+                    curl -f -I http://localhost:${{ parameters.hostPort }}
+                  displayName: 'Deploy & Health-Check ${{ parameters.environmentName }} Container (${{ parameters.hostPort }})'
+                  env:
+                    MAPPED_APP_SECRET: $(APP-SECRET)
+                    MAPPED_DB_CONN: $(DB-CONNECTION-STRING)
+
+                - task: Docker@2
+                  displayName: 'Logout from ACR'
+                  condition: always()
+                  inputs:
+                    command: 'logout'
+                    containerRegistry: ${{ parameters.acrServiceConnection }}
