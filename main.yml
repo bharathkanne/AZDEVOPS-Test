@@ -18,4 +18,4 @@ extends:
     containerPort: '3000'
     devHostPort: '3001'
     prodHostPort: '3000'
-    prodUseVirtualMachine: true
+    prodUseVirtualMachine: false
