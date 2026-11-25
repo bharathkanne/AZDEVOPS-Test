@@ -197,7 +197,14 @@ stages:
               buildType: 'current'
               artifactName: 'fleet-app-pipeline-artifact'
               targetPath: '$(Pipeline.Workspace)/downloaded-bundle'
-
+           - ${{ if eq(parameters.runSecurityScan, true) }}:
+            - task: DownloadPipelineArtifact@2
+              name: DownloadSecurityLogsTask
+              displayName: 'Security Artifact: Download SARIF Logs'
+              inputs:
+                buildType: 'current'
+                artifactName: 'CodeAnalysisLogs'
+                targetPath: '$(Pipeline.Workspace)/security-logs'
           - bash: |
               ls -la $(Pipeline.Workspace)/downloaded-bundle
               cat $(Pipeline.Workspace)/downloaded-bundle/image-manifest.json
