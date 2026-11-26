@@ -19,3 +19,5 @@ extends:
     devHostPort: '3001'
     prodHostPort: '3000'
     prodUseVirtualMachine: false
+    runSecurityScan: true
+    securityBreakBuild: false
