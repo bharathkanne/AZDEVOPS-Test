@@ -26,7 +26,7 @@ parameters:
 
 stages:
   # ============================================================================
-  # STAGE 1: CI (Secret Scanning, Matrix Tests, ACR Push & Artifacts)
+  # STAGE 1: CI (Secret Scan, Semgrep SAST, Matrix Tests, ACR Push & Artifacts)
   # ============================================================================
   - stage: CI_Stage
     displayName: 'Stage 1: CI Security Scan, Build & Artifacts'
@@ -96,11 +96,53 @@ stages:
               publishLocation: 'pipeline'
 
       # ------------------------------------------------------------------------
-      # JOB 1: MATRIX TESTS (Runs Only After SecretScanJob Passes)
+      # JOB 1: SAST SOURCE CODE GATE (Semgrep AST & Taint Analysis)
+      # ------------------------------------------------------------------------
+      - job: SemgrepSASTJob
+        displayName: 'SAST: Semgrep Source Code Analysis'
+        dependsOn: SecretScanJob
+        condition: succeeded()
+        timeoutInMinutes: 15
+        steps:
+          - checkout: self
+            clean: true
+            displayName: 'Checkout Source Code'
+
+          - bash: |
+              set -e
+              mkdir -p $(Build.ArtifactStagingDirectory)/sast-reports
+              echo "Running Semgrep AST & taint analysis..."
+              docker run --rm \
+                -v "$(Build.SourcesDirectory):/src" \
+                -v "$(Build.ArtifactStagingDirectory)/sast-reports:/reports" \
+                semgrep/semgrep:latest \
+                semgrep scan \
+                  --config auto \
+                  --config p/typescript \
+                  --config p/nodejs \
+                  --config p/owasp-top-ten \
+                  --severity ERROR \
+                  --error \
+                  --sarif-output=/reports/semgrep.sarif \
+                  /src
+            name: RunSemgrepStep
+            displayName: 'Semgrep: Scan Codebase (TypeScript, Node & OWASP)'
+
+          - task: PublishPipelineArtifact@1
+            name: PublishSemgrepReportTask
+            displayName: 'Publish Semgrep SARIF Report'
+            condition: always()
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/sast-reports'
+              artifact: 'semgrep-sast-report'
+              publishLocation: 'pipeline'
+
+      # ------------------------------------------------------------------------
+      # JOB 2: MATRIX TESTS (Runs Only After SecretScanJob & SemgrepSASTJob Pass)
       # ------------------------------------------------------------------------
       - job: MatrixTestJob
         displayName: 'Test Matrix in Isolated Container'
-        dependsOn: SecretScanJob
+        dependsOn: SemgrepSASTJob
         condition: succeeded()
         timeoutInMinutes: 20
         workspace:
@@ -156,7 +198,7 @@ stages:
             timeoutInMinutes: 5
 
       # ------------------------------------------------------------------------
-      # JOB 2: BUILD, ACR PUSH, MSDO SCAN & ARTIFACTS
+      # JOB 3: BUILD, ACR PUSH, MSDO SCAN & ARTIFACTS
       # ------------------------------------------------------------------------
       - job: BuildAndPublishArtifactsJob
         displayName: 'Push ACR Image & Publish Artifacts'
