@@ -17,19 +17,13 @@ parameters:
     type: string
   - name: universalPackageName
     type: string
-  - name: runSecurityScan
-    type: boolean
-    default: true
-  - name: securityBreakBuild
-    type: boolean
-    default: false
 
 stages:
   # ============================================================================
-  # STAGE 1: CI (Matrix Validation, ACR Push, Security Scan & Artifacts)
+  # STAGE 1: CI (Secret Scanning, Matrix Tests, ACR Push & Artifacts)
   # ============================================================================
   - stage: CI_Stage
-    displayName: 'Stage 1: CI Build, ACR Push & Artifacts'
+    displayName: 'Stage 1: CI Security Scan, Build & Artifacts'
     dependsOn: []
     condition: succeeded()
     trigger: automatic
@@ -41,8 +35,67 @@ stages:
       - name: dockerfileName
         value: ${{ parameters.dockerfileName }}
     jobs:
+      # ------------------------------------------------------------------------
+      # JOB 0: SECRET SCANNING GATE (Gitleaks + TruffleHog)
+      # ------------------------------------------------------------------------
+      - job: SecretScanJob
+        displayName: 'Security: Gitleaks & TruffleHog Secret Scan'
+        timeoutInMinutes: 10
+        steps:
+          - checkout: self
+            fetchDepth: 0
+            clean: true
+            displayName: 'Checkout Full Git History'
+
+          - bash: |
+              set -e
+              echo "Installing Gitleaks..."
+              GITLEAKS_VERSION="8.30.1"
+              curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o gitleaks.tar.gz
+              tar -xzf gitleaks.tar.gz gitleaks
+              sudo mv gitleaks /usr/local/bin/
+              rm -f gitleaks.tar.gz
+
+              mkdir -p $(Build.ArtifactStagingDirectory)/security-reports
+              echo "Running Gitleaks scan across full commit history..."
+              gitleaks detect \
+                --source . \
+                --verbose \
+                --redact \
+                --report-format sarif \
+                --report-path $(Build.ArtifactStagingDirectory)/security-reports/gitleaks.sarif
+            name: GitleaksScanStep
+            displayName: 'Gitleaks: Scan Repo & History (Regex + Entropy)'
+
+          - bash: |
+              set -e
+              echo "Running TruffleHog live-verification scan..."
+              docker run --rm \
+                -v "$(Build.SourcesDirectory):/repo" \
+                ghcr.io/trufflesecurity/trufflehog:latest \
+                git file:///repo \
+                --only-verified \
+                --fail \
+                --no-update
+            name: TruffleHogScanStep
+            displayName: 'TruffleHog: Live-Verify Active Credentials'
+
+          - task: PublishPipelineArtifact@1
+            name: PublishSecurityReportTask
+            displayName: 'Publish Gitleaks SARIF Report'
+            condition: always()
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/security-reports'
+              artifact: 'security-scan-reports'
+              publishLocation: 'pipeline'
+
+      # ------------------------------------------------------------------------
+      # JOB 1: MATRIX TESTS (Runs Only After SecretScanJob Passes)
+      # ------------------------------------------------------------------------
       - job: MatrixTestJob
         displayName: 'Test Matrix in Isolated Container'
+        dependsOn: SecretScanJob
+        condition: succeeded()
         timeoutInMinutes: 20
         workspace:
           clean: outputs
@@ -96,6 +149,9 @@ stages:
             target: host
             timeoutInMinutes: 5
 
+      # ------------------------------------------------------------------------
+      # JOB 2: BUILD, ACR PUSH & ARTIFACTS
+      # ------------------------------------------------------------------------
       - job: BuildAndPublishArtifactsJob
         displayName: 'Push ACR Image & Publish Artifacts'
         dependsOn: MatrixTestJob
@@ -125,16 +181,6 @@ stages:
               tags: |
                 ${{ parameters.tag }}
                 latest
-
-          - ${{ if eq(parameters.runSecurityScan, true) }}:
-            - task: MicrosoftSecurityDevOps@1
-              name: RunMSDOTask
-              displayName: 'Security: MSDO Scan (Trivy, Checkov, ESLint)'
-              timeoutInMinutes: 15
-              inputs:
-                categories: 'code,IaC,containers'
-                tools: 'trivy,checkov,eslint'
-                break: ${{ parameters.securityBreakBuild }}
 
           - bash: |
               set -e
@@ -198,15 +244,6 @@ stages:
               buildType: 'current'
               artifactName: 'fleet-app-pipeline-artifact'
               targetPath: '$(Pipeline.Workspace)/downloaded-bundle'
-
-          - ${{ if eq(parameters.runSecurityScan, true) }}:
-            - task: DownloadPipelineArtifact@2
-              name: DownloadSecurityLogsTask
-              displayName: 'Security Artifact: Download SARIF Logs'
-              inputs:
-                buildType: 'current'
-                artifactName: 'CodeAnalysisLogs'
-                targetPath: '$(Pipeline.Workspace)/security-logs'
 
           - bash: |
               ls -la $(Pipeline.Workspace)/downloaded-bundle
