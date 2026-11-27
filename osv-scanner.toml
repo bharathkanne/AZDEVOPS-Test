@@ -1,0 +1,27 @@
+[[IgnoredVulns]]
+id = "CVE-2026-112942"
+reason = "Vite dev-server/launch-editor Windows-only path check bypass; not exposed in Linux production container."
+
+[[IgnoredVulns]]
+id = "CVE-2026-112943"
+reason = "Vite dev-server/launch-editor Windows cmd.exe % escaping issue; not applicable to Linux production runtime."
+
+[[IgnoredVulns]]
+id = "CVE-2026-112944"
+reason = "Vite dev-server/launch-editor CLI flag issue; dev dependency only."
+
+[[IgnoredVulns]]
+id = "CVE-2026-112945"
+reason = "Vite custom middleware dev-server XSS; dev dependency only."
+
+[[IgnoredVulns]]
+id = "CVE-2026-112946"
+reason = "Vite dev-server server.fs.allow bypass; dev dependency only."
+
+[[IgnoredVulns]]
+id = "CVE-2026-118764"
+reason = "Transitive minimatch globbing DoS in build/lint tooling; no untrusted user glob inputs."
+
+[[IgnoredVulns]]
+id = "CVE-2023-54404"
+reason = "Accepted risk for Zod v3.x pending major v4 upgrade."
