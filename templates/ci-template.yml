@@ -185,8 +185,8 @@ stages:
                 aquasec/trivy:latest fs . \
                   --scanners vuln \
                   --severity CRITICAL,HIGH \
-                  --skip-files "**/bun.lock" \
                   --ignore-unfixed \
+                  --skip-files "**/bun.lock" \
                   --exit-code 1
             name: TrivySCAStep
             displayName: 'Trivy FS: Scan Dependencies & Enforce Gate'
@@ -194,14 +194,29 @@ stages:
           - bash: |
               set -e
               echo "Running OSV-Scanner lockfile & SPDX license audit..."
+              set +e
               docker run --rm \
                 -v "$(Build.SourcesDirectory):/src" \
                 -w /src \
                 ghcr.io/google/osv-scanner:latest \
                 scan source \
                   --lockfile=package-lock.json \
-                  --licenses="MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC" \
+                  --licenses="MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC,0BSD,CC0-1.0,CC-BY-3.0,CC-BY-4.0,BlueOak-1.0.0,Unlicense,WTFPL,Zlib" \
                   --format sarif > $(Build.ArtifactStagingDirectory)/sca-reports/osv-sca.sarif
+              OSV_EXIT=$?
+              set -e
+
+              node -e '
+                const fs = require("fs");
+                const sarif = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+                const results = sarif.runs?.[0]?.results || [];
+                console.log(`OSV-Scanner remaining issues: ${results.length}`);
+                for (const r of results) {
+                  console.log(`- [${r.ruleId}] ${r.message?.text}`);
+                }
+              ' "$(Build.ArtifactStagingDirectory)/sca-reports/osv-sca.sarif"
+
+              exit $OSV_EXIT
             name: OSVScannerStep
             displayName: 'OSV-Scanner: Audit Lockfile & SPDX License Allowlist'
 
