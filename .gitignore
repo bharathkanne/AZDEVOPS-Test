@@ -15,7 +15,7 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
-
+bun.lock
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
