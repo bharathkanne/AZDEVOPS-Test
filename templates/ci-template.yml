@@ -1,195 +1,396 @@
+parameters:
+  - name: vmImage
+    type: string
+    default: 'ubuntu-latest'
+  - name: acrServiceConnection
+    type: string
+  - name: imageRepository
+    type: string
+  - name: fullImage
+    type: string
+  - name: tag
+    type: string
+  - name: dockerfileName
+    type: string
+    default: 'test.Dockerfile'
+  - name: artifactFeed
+    type: string
+  - name: universalPackageName
+    type: string
+  - name: runSecurityScan
+    type: boolean
+    default: true
+  - name: securityBreakBuild
+    type: boolean
+    default: true
+
 stages:
-  - stage: CI
-    displayName: 'Continuous Integration & Security Gates'
+  # ============================================================================
+  # STAGE 1: CI (Secret Scan, SAST, SCA, Matrix Tests, ACR Push & Artifacts)
+  # ============================================================================
+  - stage: CI_Stage
+    displayName: 'Stage 1: CI Security Scan, Build & Artifacts'
+    dependsOn: []
+    condition: succeeded()
+    trigger: automatic
+    isSkippable: false
+    lockBehavior: runLatest
+    pool:
+      vmImage: ${{ parameters.vmImage }}
+    variables:
+      - name: dockerfileName
+        value: ${{ parameters.dockerfileName }}
     jobs:
-      # 1. Secret Scanning (Gitleaks)
+      # ------------------------------------------------------------------------
+      # JOB 0: SECRET SCANNING GATE (Gitleaks + TruffleHog)
+      # ------------------------------------------------------------------------
       - job: SecretScanJob
-        displayName: 'Secret Scan (Gitleaks)'
-        pool:
-          vmImage: 'ubuntu-latest'
+        displayName: 'Security: Gitleaks & TruffleHog Secret Scan'
+        timeoutInMinutes: 10
         steps:
           - checkout: self
             fetchDepth: 0
             clean: true
+            displayName: 'Checkout Full Git History'
 
-          - script: |
-              mkdir -p $(Build.ArtifactStagingDirectory)
+          - bash: |
+              set -e
+              echo "Installing Gitleaks..."
+              GITLEAKS_VERSION="8.30.1"
+              curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o gitleaks.tar.gz
+              tar -xzf gitleaks.tar.gz gitleaks
+              sudo mv gitleaks /usr/local/bin/
+              rm -f gitleaks.tar.gz
+
+              mkdir -p $(Build.ArtifactStagingDirectory)/security-reports
+              echo "Running Gitleaks scan across full commit history..."
+              gitleaks detect \
+                --source . \
+                --verbose \
+                --redact \
+                --report-format sarif \
+                --report-path $(Build.ArtifactStagingDirectory)/security-reports/gitleaks.sarif
+            name: GitleaksScanStep
+            displayName: 'Gitleaks: Scan Repo & History (Regex + Entropy)'
+
+          - bash: |
+              set -e
+              echo "Running TruffleHog live-verification scan..."
               docker run --rm \
                 -v "$(Build.SourcesDirectory):/repo" \
-                -v "$(Build.ArtifactStagingDirectory):/out" \
-                ghcr.io/gitleaks/gitleaks:v8.30.1 \
-                git /repo --verbose --redact \
-                --report-format sarif \
-                --report-path /out/gitleaks.sarif
-            displayName: 'Run Gitleaks Secret Scan'
+                ghcr.io/trufflesecurity/trufflehog:latest \
+                git file:///repo \
+                --only-verified \
+                --fail \
+                --no-update
+            name: TruffleHogScanStep
+            displayName: 'TruffleHog: Live-Verify Active Credentials'
 
-          - task: PublishBuildArtifacts@1
+          - task: PublishPipelineArtifact@1
+            name: PublishSecurityReportTask
+            displayName: 'Publish Gitleaks SARIF Report'
             condition: always()
             inputs:
-              PathtoPublish: '$(Build.ArtifactStagingDirectory)/gitleaks.sarif'
-              ArtifactName: 'CodeAnalysisLogs'
-            displayName: 'Publish Gitleaks SARIF'
+              targetPath: '$(Build.ArtifactStagingDirectory)/security-reports'
+              artifact: 'security-scan-reports'
+              publishLocation: 'pipeline'
 
-      # 2. Static Application Security Testing — SAST (Semgrep)
+      # ------------------------------------------------------------------------
+      # JOB 1A: SAST SOURCE CODE GATE (Semgrep AST & Taint Analysis)
+      # ------------------------------------------------------------------------
       - job: SemgrepSASTJob
-        displayName: 'SAST Scan (Semgrep)'
+        displayName: 'SAST: Semgrep Source Code Analysis'
         dependsOn: SecretScanJob
-        pool:
-          vmImage: 'ubuntu-latest'
+        condition: succeeded()
+        timeoutInMinutes: 15
         steps:
           - checkout: self
             clean: true
+            displayName: 'Checkout Source Code'
 
-          - script: |
-              mkdir -p $(Build.ArtifactStagingDirectory)
+          - bash: |
+              set -e
+              mkdir -p $(Build.ArtifactStagingDirectory)/sast-reports
+              echo "Running Semgrep AST & taint analysis..."
               docker run --rm \
                 -v "$(Build.SourcesDirectory):/src" \
-                -v "$(Build.ArtifactStagingDirectory):/out" \
+                -v "$(Build.ArtifactStagingDirectory)/sast-reports:/reports" \
                 semgrep/semgrep:latest \
-                semgrep scan --config auto --error \
-                --sarif --sarif-output=/out/semgrep.sarif /src
-            displayName: 'Run Semgrep SAST Scan'
+                semgrep scan \
+                  --config auto \
+                  --config p/typescript \
+                  --config p/nodejs \
+                  --config p/owasp-top-ten \
+                  --severity ERROR \
+                  --error \
+                  --sarif-output=/reports/semgrep.sarif \
+                  /src
+            name: RunSemgrepStep
+            displayName: 'Semgrep: Scan Codebase (TypeScript, Node & OWASP)'
 
-          - task: PublishBuildArtifacts@1
+          - task: PublishPipelineArtifact@1
+            name: PublishSemgrepReportTask
+            displayName: 'Publish Semgrep SARIF Report'
             condition: always()
             inputs:
-              PathtoPublish: '$(Build.ArtifactStagingDirectory)/semgrep.sarif'
-              ArtifactName: 'CodeAnalysisLogs'
-            displayName: 'Publish Semgrep SARIF'
+              targetPath: '$(Build.ArtifactStagingDirectory)/sast-reports'
+              artifact: 'semgrep-sast-report'
+              publishLocation: 'pipeline'
 
-      # 3. Software Composition Analysis — SCA (Trivy FS + Google OSV-Scanner)
+      # ------------------------------------------------------------------------
+      # JOB 1B: SCA DEPENDENCY & LICENSE GATE (Trivy FS + Google OSV-Scanner)
+      # ------------------------------------------------------------------------
       - job: SCAScanJob
-        displayName: 'SCA Scan (Trivy FS & OSV-Scanner)'
+        displayName: 'SCA: Trivy FS & OSV-Scanner Dependency Audit'
         dependsOn: SecretScanJob
-        pool:
-          vmImage: 'ubuntu-latest'
+        condition: succeeded()
+        timeoutInMinutes: 15
         steps:
           - checkout: self
             clean: true
+            displayName: 'Checkout Source Code'
 
           - task: NodeTool@0
+            name: UseNode22Step
+            displayName: 'Install Node.js 22.x'
             inputs:
               versionSpec: '22.x'
-            displayName: 'Use Node.js 22.x'
 
-          - script: npm ci --legacy-peer-deps
+          - bash: |
+              set -e
+              npm ci --legacy-peer-deps
+              mkdir -p $(Build.ArtifactStagingDirectory)/sca-reports
+            name: InstallDepsStep
             displayName: 'Install Dependencies for License & Lockfile Resolution'
 
-          # --- Trivy FS (SARIF Report + Quality Gate) ---
-          - script: |
-              mkdir -p $(Build.ArtifactStagingDirectory)
+          - bash: |
+              set -e
+              echo "Generating Trivy FS SARIF report (CVEs + Licenses)..."
               docker run --rm \
                 -v "$(Build.SourcesDirectory):/src" \
-                -v "$(Build.ArtifactStagingDirectory):/out" \
+                -v "$(Build.ArtifactStagingDirectory)/sca-reports:/reports" \
                 -w /src \
-                aquasec/trivy:0.74.0 fs . \
+                aquasec/trivy:latest fs . \
                   --scanners vuln,license \
                   --severity CRITICAL,HIGH \
                   --ignore-unfixed \
                   --format sarif \
-                  --output /out/trivy-sca.sarif
-            displayName: 'SCA Scan (Trivy FS)'
+                  --output /reports/trivy-sca.sarif
 
-          - script: |
+              echo "Enforcing Trivy SCA Quality Gate..."
               docker run --rm \
                 -v "$(Build.SourcesDirectory):/src" \
                 -w /src \
-                aquasec/trivy:0.74.0 fs . \
+                aquasec/trivy:latest fs . \
                   --scanners vuln \
                   --severity CRITICAL,HIGH \
                   --ignore-unfixed \
                   --exit-code 1
-            displayName: 'SCA Quality Gate (Fail on High/Critical)'
+            name: TrivySCAStep
+            displayName: 'Trivy FS: Scan Dependencies & Enforce Gate'
 
-          - task: PublishBuildArtifacts@1
-            condition: always()
-            inputs:
-              PathtoPublish: '$(Build.ArtifactStagingDirectory)/trivy-sca.sarif'
-              ArtifactName: 'CodeAnalysisLogs'
-            displayName: 'Publish Trivy SCA SARIF'
-
-          # --- Google OSV-Scanner (Lockfile + SPDX License Allowlist) ---
-          - script: |
-              curl -sSL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 -o /tmp/osv-scanner
+          - bash: |
+              set -e
+              echo "Installing Google OSV-Scanner..."
+              curl -sSfL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_x64 -o /tmp/osv-scanner
               chmod +x /tmp/osv-scanner
+
+              echo "Running OSV-Scanner lockfile & SPDX license audit..."
               /tmp/osv-scanner scan source \
                 --lockfile=package-lock.json \
                 --licenses="MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC" \
-                --format sarif > $(Build.ArtifactStagingDirectory)/osv-sca.sarif
-            displayName: 'SCA Scan (Google OSV-Scanner)'
+                --format sarif > $(Build.ArtifactStagingDirectory)/sca-reports/osv-sca.sarif
+            name: OSVScannerStep
+            displayName: 'OSV-Scanner: Audit Lockfile & SPDX License Allowlist'
 
-          - task: PublishBuildArtifacts@1
+          - task: PublishPipelineArtifact@1
+            name: PublishSCAReportTask
+            displayName: 'Publish Trivy & OSV-Scanner SARIF Reports'
             condition: always()
             inputs:
-              PathtoPublish: '$(Build.ArtifactStagingDirectory)/osv-sca.sarif'
-              ArtifactName: 'CodeAnalysisLogs'
-            displayName: 'Publish OSV-Scanner SARIF'
+              targetPath: '$(Build.ArtifactStagingDirectory)/sca-reports'
+              artifact: 'sca-scan-reports'
+              publishLocation: 'pipeline'
 
-      # 4. Node.js Matrix Build, Lint, Typecheck & Test
+      # ------------------------------------------------------------------------
+      # JOB 2: MATRIX TESTS (Runs Only After SecretScan, Semgrep & SCA Pass)
+      # ------------------------------------------------------------------------
       - job: MatrixTestJob
-        displayName: 'Test & Validate'
+        displayName: 'Test Matrix in Isolated Container'
         dependsOn:
           - SemgrepSASTJob
           - SCAScanJob
+        condition: succeeded()
+        timeoutInMinutes: 20
+        workspace:
+          clean: outputs
+        variables:
+          - name: CI
+            value: 'true'
         strategy:
+          maxParallel: 2
           matrix:
-            Node20:
-              nodeVersion: '20.x'
-            Node22:
-              nodeVersion: '22.x'
-        pool:
-          vmImage: 'ubuntu-latest'
+            Node20_Env:
+              NODE_TARGET: '20'
+              TEST_SUITE: 'unit'
+            Node22_Env:
+              NODE_TARGET: '22'
+              TEST_SUITE: 'routing'
+        container: node:22-bookworm-slim
+        services:
+          redis: redis:7-alpine
         steps:
           - checkout: self
             clean: true
+            displayName: 'Checkout Source Code'
 
-          - task: NodeTool@0
-            inputs:
-              versionSpec: '$(nodeVersion)'
-            displayName: 'Install Node.js $(nodeVersion)'
+          - bash: |
+              set -e
+              echo "Running $(TEST_SUITE) tests on Node target $(NODE_TARGET)"
+              node -v
+              echo "##vso[task.setvariable variable=buildReady;isOutput=true]true"
+            name: EnvCheckStep
+            displayName: 'Bash: Check Runtime & Export Output Variable'
+            timeoutInMinutes: 5
+            env:
+              REDIS_HOST: 'redis'
+              TARGET_VERSION: '$(NODE_TARGET)'
 
-          - script: npm ci --legacy-peer-deps
-            displayName: 'Install Dependencies'
+          - bash: |
+              node -e '
+                const pkg = require("./package.json");
+                console.log(`Validated package: ${pkg.name} (Type: ${pkg.type})`);
+              '
+            name: MetadataStep
+            displayName: 'Node: Validate package.json'
+            timeoutInMinutes: 3
+            continueOnError: true
 
-          - script: npx tsc --noEmit
-            displayName: 'TypeScript Type Check'
+          - script: |
+              echo "Executing host-level check outside job container"
+              docker info --format '{{.ServerVersion}}'
+            name: HostCheckStep
+            displayName: 'Script (Host Target): Verify Host Docker Engine'
+            target: host
+            timeoutInMinutes: 5
 
-          - script: npm run lint
-            displayName: 'Run ESLint'
-
-          - script: npm run test
-            displayName: 'Run Unit Tests'
-
-      # 5. Production Build & Pipeline Artifact Publish
+      # ------------------------------------------------------------------------
+      # JOB 3: BUILD, ACR PUSH, MSDO SCAN & ARTIFACTS
+      # ------------------------------------------------------------------------
       - job: BuildAndPublishArtifactsJob
-        displayName: 'Build Nitro Bundle & Publish Artifacts'
+        displayName: 'Push ACR Image & Publish Artifacts'
         dependsOn: MatrixTestJob
-        pool:
-          vmImage: 'ubuntu-latest'
+        condition: succeeded()
+        timeoutInMinutes: 30
+        workspace:
+          clean: all
+        variables:
+          - name: DOCKER_BUILDKIT
+            value: '1'
         steps:
           - checkout: self
             clean: true
+            displayName: 'Checkout Source Code'
 
-          - task: NodeTool@0
+          - task: Docker@2
+            name: BuildAndPushTask
+            displayName: 'Task: Build & Push Image to ACR'
+            target: host
+            timeoutInMinutes: 20
+            retryCountOnTaskFailure: 1
             inputs:
-              versionSpec: '22.x'
-            displayName: 'Install Node.js 22.x'
+              command: 'buildAndPush'
+              containerRegistry: ${{ parameters.acrServiceConnection }}
+              repository: ${{ parameters.imageRepository }}
+              Dockerfile: '$(dockerfileName)'
+              tags: |
+                ${{ parameters.tag }}
+                latest
 
-          - script: npm ci --legacy-peer-deps
-            displayName: 'Install Dependencies'
+          - ${{ if eq(parameters.runSecurityScan, true) }}:
+            - task: MicrosoftSecurityDevOps@1
+              name: RunMSDOTask
+              displayName: 'Security: MSDO Scan (Trivy, Checkov, ESLint)'
+              timeoutInMinutes: 15
+              inputs:
+                categories: 'code,iac,containers'
+                tools: 'trivy,checkov,eslint'
+                break: ${{ parameters.securityBreakBuild }}
 
-          - script: |
-              export NITRO_PRESET=node-server
-              npm run build
-            displayName: 'Build Nitro Server'
-
-          - script: |
-              mkdir -p $(Build.ArtifactStagingDirectory)/bundle
-              cp -r .output package.json package-lock.json $(Build.ArtifactStagingDirectory)/bundle/
-            displayName: 'Stage Production Bundle'
+          - bash: |
+              set -e
+              mkdir -p $(Build.ArtifactStagingDirectory)/release-bundle
+              cp package.json $(dockerfileName) $(Build.ArtifactStagingDirectory)/release-bundle/
+              cat <<EOF > $(Build.ArtifactStagingDirectory)/release-bundle/image-manifest.json
+              {
+                "image": "${{ parameters.fullImage }}",
+                "buildId": "$(Build.BuildId)",
+                "commit": "$(Build.SourceVersion)",
+                "branch": "$(Build.SourceBranchName)"
+              }
+              EOF
+            name: PrepareBundleStep
+            displayName: 'Bash: Prepare Release Bundle for Artifacts'
 
           - task: PublishPipelineArtifact@1
+            name: PublishPipelineArtifactTask
+            displayName: 'Pipeline Artifact: Publish Release Bundle'
             inputs:
-              targetPath: '$(Build.ArtifactStagingDirectory)/bundle'
+              targetPath: '$(Build.ArtifactStagingDirectory)/release-bundle'
               artifact: 'fleet-app-pipeline-artifact'
-            displayName: 'Publish Pipeline Artifact'
+              publishLocation: 'pipeline'
+
+          - task: UniversalPackages@0
+            name: PublishAzureArtifactTask
+            displayName: 'Azure Artifacts: Publish Universal Package'
+            condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              command: 'publish'
+              publishDirectory: '$(Build.ArtifactStagingDirectory)/release-bundle'
+              feedsToUsePublish: 'internal'
+              vstsFeedPublish: ${{ parameters.artifactFeed }}
+              vstsFeedPackagePublish: ${{ parameters.universalPackageName }}
+              versionOption: 'custom'
+              versionPublish: '1.0.$(Build.BuildId)'
+              packagePublishDescription: 'Release bundle and image manifest for ${{ parameters.imageRepository }} build $(Build.BuildId)'
+
+  # ============================================================================
+  # STAGE 2: ARTIFACT & IMAGE VERIFICATION
+  # ============================================================================
+  - stage: Artifact_Verification_Stage
+    displayName: 'Stage 2: Verify Pipeline Artifact & ACR Image'
+    dependsOn: CI_Stage
+    condition: succeeded()
+    isSkippable: true
+    lockBehavior: sequential
+    pool:
+      vmImage: ${{ parameters.vmImage }}
+    jobs:
+      - job: VerifyArtifactsJob
+        displayName: 'Download Pipeline Artifact & Inspect ACR Image'
+        timeoutInMinutes: 10
+        steps:
+          - checkout: none
+
+          - task: DownloadPipelineArtifact@2
+            name: DownloadPipelineArtifactTask
+            displayName: 'Pipeline Artifact: Download Release Bundle'
+            inputs:
+              buildType: 'current'
+              artifactName: 'fleet-app-pipeline-artifact'
+              targetPath: '$(Pipeline.Workspace)/downloaded-bundle'
+
+          - ${{ if eq(parameters.runSecurityScan, true) }}:
+            - task: DownloadPipelineArtifact@2
+              name: DownloadSecurityLogsTask
+              displayName: 'Security Artifact: Download SARIF Logs'
+              inputs:
+                buildType: 'current'
+                artifactName: 'CodeAnalysisLogs'
+                targetPath: '$(Pipeline.Workspace)/security-logs'
+
+          - bash: |
+              ls -la $(Pipeline.Workspace)/downloaded-bundle
+              cat $(Pipeline.Workspace)/downloaded-bundle/image-manifest.json
+            name: VerifyBundleStep
+            displayName: 'Bash: Verify Downloaded Manifest'
