@@ -150,7 +150,7 @@ stages:
             clean: true
             displayName: 'Checkout Source Code'
 
-          - task: NodeTool@0
+          - task: NodeTool@1
             name: UseNode22Step
             displayName: 'Install Node.js 22.x'
             inputs:
