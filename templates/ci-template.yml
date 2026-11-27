@@ -138,10 +138,10 @@ stages:
               publishLocation: 'pipeline'
 
       # ------------------------------------------------------------------------
-      # JOB 1B: SCA DEPENDENCY & LICENSE GATE (Trivy FS + Google OSV-Scanner)
+      # JOB 1B: SCA DEPENDENCY & LICENSE GATE (Trivy FS)
       # ------------------------------------------------------------------------
       - job: SCAScanJob
-        displayName: 'SCA: Trivy FS & OSV-Scanner Dependency Audit'
+        displayName: 'SCA: Trivy FS Dependency & License Audit'
         dependsOn: SecretScanJob
         condition: succeeded()
         timeoutInMinutes: 15
@@ -150,7 +150,7 @@ stages:
             clean: true
             displayName: 'Checkout Source Code'
 
-          - task: NodeTool@1
+          - task: NodeTool@0
             name: UseNode22Step
             displayName: 'Install Node.js 22.x'
             inputs:
@@ -161,7 +161,7 @@ stages:
               npm ci --legacy-peer-deps
               mkdir -p $(Build.ArtifactStagingDirectory)/sca-reports
             name: InstallDepsStep
-            displayName: 'Install Dependencies for License & Lockfile Resolution'
+            displayName: 'Install Dependencies for Lockfile & License Resolution'
 
           - bash: |
               set -e
@@ -191,10 +191,9 @@ stages:
             name: TrivySCAStep
             displayName: 'Trivy FS: Scan Dependencies & Enforce Gate'
 
-
           - task: PublishPipelineArtifact@1
             name: PublishSCAReportTask
-            displayName: 'Publish Trivy & OSV-Scanner SARIF Reports'
+            displayName: 'Publish Trivy SCA SARIF Report'
             condition: always()
             inputs:
               targetPath: '$(Build.ArtifactStagingDirectory)/sca-reports'
