@@ -21,7 +21,7 @@ import type { Role } from "@/lib/types";
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
     meta: [
-      { title: "Settings — Vehicle Management CMS" },
+      { title: "Settings — Fleet Ops" },
       {
         name: "description",
         content: "Company information, user profile and application settings.",
