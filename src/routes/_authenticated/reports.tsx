@@ -41,7 +41,7 @@ export const Route = createFileRoute("/_authenticated/reports")({
   }),
   head: () => ({
     meta: [
-      { title: "Reports — Vehicle Management CMS" },
+      { title: "Reports — Fleet Ops" },
       {
         name: "description",
         content: "Vehicle, maintenance, compliance and assignment reports with CSV export.",
