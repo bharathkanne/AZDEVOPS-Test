@@ -94,7 +94,7 @@ function SettingsBody({ session }: { session: NonNullable<ReturnType<typeof useS
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Settings" />
+      <PageHeader title="Workspace" />
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel title="User Profile">
           <div className="grid gap-4 p-5 sm:grid-cols-2">
@@ -153,7 +153,7 @@ function SettingsBody({ session }: { session: NonNullable<ReturnType<typeof useS
             </div>
           </div>
         </Panel>
-        <Panel title="Company Information">
+        <Panel title="Organization Profile">
           <div className="grid gap-4 p-5 sm:grid-cols-2">
             <L label="Company Name">
               <Input
@@ -185,7 +185,7 @@ function SettingsBody({ session }: { session: NonNullable<ReturnType<typeof useS
             </L>
           </div>
         </Panel>
-        <Panel title="Application Settings">
+        <Panel title="Workspace Preferences">
           <div className="grid gap-4 p-5 sm:grid-cols-2">
             <L label="Compliance warning (days before expiry)">
               <Input
