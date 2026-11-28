@@ -1,4 +1,4 @@
-# Fleet App — End-to-End DevOps, DevSecOps & GitOps Learning Lab
+# Fleet Ops — End-to-End DevOps, DevSecOps & GitOps Learning Lab
 
 A hands-on, production-style CI/CD and GitOps reference project built with **TypeScript**, **TanStack Start**, and **Vite**, designed to master modern cloud-native delivery from local containerization to automated Kubernetes deployment.
 
