@@ -11,7 +11,7 @@ const ST = ["New", "Active", "Completed", "On Hold", "Cancelled"];
 export const Route = createFileRoute("/_authenticated/projects/")({
   head: () => ({
     meta: [
-      { title: "Projects — Vehicle Management CMS" },
+      { title: "Projects — Fleet Ops" },
       { name: "description", content: "Projects and the vehicles assigned to them." },
       { property: "og:title", content: "Projects" },
       { property: "og:description", content: "Projects and assigned vehicles." },
