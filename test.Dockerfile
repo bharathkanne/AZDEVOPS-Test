@@ -37,17 +37,17 @@ RUN rm -rf \
       /opt/yarn*
 
 # Copy only compiled Nitro output and metadata with explicit non-root ownership
-COPY --from=builder --chown=node:node /app/.output ./.output
-COPY --from=builder --chown=node:node /app/package.json ./package.json
+COPY --from=builder --chown=1000:1000 /app/.output ./.output
+COPY --from=builder --chown=1000:1000 /app/package.json ./package.json
 
-# Enforce least-privilege execution (UID/GID 1000)
-USER node
+# Enforce numeric non-root UID:GID (satisfies DL3066 & Kubernetes runAsNonRoot)
+USER 1000:1000
 
 EXPOSE 3000
 
-# Native Node healthcheck (avoids installing curl/wget in runtime image)
+# Native Node healthcheck in JSON exec form (satisfies DL3025 & avoids /bin/sh)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/').then(r => process.exit(r.ok || r.status === 404 ? 0 : 1)).catch(() => process.exit(1))"
+  CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/').then(r => process.exit(r.ok || r.status === 404 ? 0 : 1)).catch(() => process.exit(1))"]
 
 # Exec form ensures PID 1 receives SIGTERM directly for graceful shutdowns
 CMD ["node", ".output/server/index.mjs"]
