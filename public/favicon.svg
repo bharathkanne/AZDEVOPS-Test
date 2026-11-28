@@ -1,11 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
-  <title id="title">Fleet Ops logo</title>
-  <desc id="desc">A geometric road and vehicle mark</desc>
-  <rect width="64" height="64" rx="14" fill="#E86F20"/>
-  <path d="M14 18h36l-4.8 13.4A10 10 0 0 1 35.8 38h-7.6a10 10 0 0 1-9.4-6.6L14 18Z" fill="#202124"/>
-  <path d="M22 27h20l3.7 10.2A4.2 4.2 0 0 1 41.8 43H22.2a4.2 4.2 0 0 1-3.9-5.8L22 27Z" fill="#FFF"/>
-  <circle cx="24" cy="44" r="4" fill="#202124"/>
-  <circle cx="40" cy="44" r="4" fill="#202124"/>
-  <path d="M30 29h4v10h-4z" fill="#E86F20"/>
-  <path d="M30 21h4v5h-4z" fill="#FFF"/>
+  <title id="title">Fleet Ops emblem</title>
+  <desc id="desc">A teal navigation compass with a road through its center</desc>
+  <rect width="64" height="64" rx="16" fill="#0B2630"/>
+  <circle cx="32" cy="32" r="22" fill="none" stroke="#39C6AE" stroke-width="3"/>
+  <path d="M24 48 32 16l8 32-8-7-8 7Z" fill="#39C6AE"/>
+  <path d="M30 27h4v9h-4z" fill="#0B2630"/>
+  <circle cx="32" cy="32" r="3" fill="#F3FAF8"/>
 </svg>
