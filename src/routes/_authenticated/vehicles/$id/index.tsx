@@ -55,7 +55,7 @@ export const Route = createFileRoute("/_authenticated/vehicles/$id/")({
   }),
   head: ({ params }) => ({
     meta: [
-      { title: `${params.id} — Vehicle Management CMS` },
+      { title: `${params.id} — Fleet Ops` },
       {
         name: "description",
         content: "Vehicle detail: ownership, assignment, compliance, maintenance and documents.",
