@@ -29,14 +29,14 @@ function Page() {
     }));
   return (
     <EntityPage<Maintenance & { vehicleName: string }>
-      title="Maintenance"
+      title="Service Center"
       singular="Maintenance Record"
-      subtitle="Every service is kept as a history record"
+      subtitle="Service history, workshop activity and upcoming inspections"
       rows={rows}
       columns={[
         {
           key: "id",
-          label: "Maintenance ID",
+          label: "Service ID",
           render: (r) => <span className="font-mono text-xs">{r.id}</span>,
         },
         {
@@ -75,7 +75,7 @@ function Page() {
       ]}
       filter={{ key: "serviceType", label: "Service Types", options: SERVICE_TYPES }}
       fields={[
-        { key: "id", label: "Maintenance ID", required: true },
+        { key: "id", label: "Service ID", required: true },
         {
           key: "vehicleId",
           label: "Vehicle",
