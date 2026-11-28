@@ -9,7 +9,7 @@ import type { Owner } from "@/lib/types";
 export const Route = createFileRoute("/_authenticated/owners/")({
   head: () => ({
     meta: [
-      { title: "Owners — Vehicle Management CMS" },
+      { title: "Owners — Fleet Ops" },
       { name: "description", content: "Vehicle owners, lessors and rental companies." },
       { property: "og:title", content: "Owners" },
       { property: "og:description", content: "Vehicle owners." },
