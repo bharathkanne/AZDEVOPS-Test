@@ -32,9 +32,9 @@ function Page() {
     }));
   return (
     <EntityPage<Asset & { linked: string }>
-      title="Assets"
+      title="Equipment"
       singular="Asset"
-      subtitle="Asset master — vehicle-group assets can be linked to one vehicle"
+      subtitle="Track equipment records, ownership and assigned fleet units"
       rows={rows}
       initialQuery={q}
       columns={[
