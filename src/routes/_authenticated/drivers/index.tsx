@@ -28,15 +28,15 @@ function Page() {
     }));
   return (
     <EntityPage<Driver & { vehicle: string }>
-      title="Drivers"
+      title="Operators"
       singular="Driver"
-      subtitle="Licensed operators and their current vehicles"
+      subtitle="Operator profiles, credentials and current assignments"
       rows={rows}
       columns={[
-        { key: "id", label: "Driver ID" },
+        { key: "id", label: "Operator ID" },
         {
           key: "name",
-          label: "Full Name",
+          label: "Operator Name",
           render: (r) => <span className="font-medium">{r.name}</span>,
         },
         { key: "phone", label: "Phone" },
@@ -45,7 +45,7 @@ function Page() {
         { key: "licenseType", label: "License Type" },
         {
           key: "licenseExpiry",
-          label: "License Expiry",
+          label: "Credential Expiry",
           render: (r) => {
             const s = expiryStatus(r.licenseExpiry, db.company.expiryWarningDays);
             return (
@@ -62,8 +62,8 @@ function Page() {
       detail={(r) => <IdLink to="/drivers/$id" id={r.id} />}
       filter={{ key: "status", label: "Statuses", options: ["Active", "Inactive"] }}
       fields={[
-        { key: "id", label: "Driver ID", required: true },
-        { key: "name", label: "Full Name", required: true },
+        { key: "id", label: "Operator ID", required: true },
+        { key: "name", label: "Operator Name", required: true },
         { key: "phone", label: "Phone" },
         { key: "email", label: "Email", type: "email" },
         { key: "licenseNumber", label: "License Number" },
@@ -76,7 +76,7 @@ function Page() {
             label: o,
           })),
         },
-        { key: "licenseExpiry", label: "License Expiry", type: "date" },
+        { key: "licenseExpiry", label: "Credential Expiry", type: "date" },
         {
           key: "status",
           label: "Status",
