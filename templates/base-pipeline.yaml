@@ -58,6 +58,7 @@ stages:
       universalPackageName: ${{ parameters.universalPackageName }}
       runSecurityScan: ${{ parameters.runSecurityScan }}
       securityBreakBuild: ${{ parameters.securityBreakBuild }}
+      stagingUrl: 'https://staging.fleet-app.example.com'
 
   # Include Dev Deployment Stage (Microsoft-hosted ubuntu-latest)
   - template: deploy-template.yml
