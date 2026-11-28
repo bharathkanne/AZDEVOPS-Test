@@ -112,41 +112,41 @@ function Dashboard() {
   }, [db]);
 
   const kpis = [
-    { label: "Total Vehicles", v: s.total, icon: Truck, search: {} },
+    { label: "Fleet Units", v: s.total, icon: Truck, search: {} },
     {
-      label: "Active Vehicles",
+      label: "In Service",
       v: s.active,
       icon: CheckCircle2,
       search: { status: "Active" },
       tone: "text-success",
     },
     {
-      label: "Under Repair",
+      label: "Workshop Queue",
       v: s.repair,
       icon: Wrench,
       search: { status: "Under Repair" },
       tone: "text-destructive",
     },
     {
-      label: "Idle Vehicles",
+      label: "Available Units",
       v: s.idle,
       icon: PauseCircle,
       search: { status: "Idle" },
       tone: "text-warning",
     },
-    { label: "Unassigned", v: s.unassigned, icon: UserX, search: { flag: "unassigned" } },
+    { label: "Awaiting Allocation", v: s.unassigned, icon: UserX, search: { flag: "unassigned" } },
   ];
   const kpis2 = [
-    { label: "Registration Expiring", v: s.regExp, icon: FileWarning, search: { flag: "reg" } },
-    { label: "Insurance Expiring", v: s.insExp, icon: ShieldAlert, search: { flag: "ins" } },
-    { label: "Maintenance Due", v: s.maintDue, icon: CalendarClock, search: { flag: "maint" } },
+    { label: "Registration Watch", v: s.regExp, icon: FileWarning, search: { flag: "reg" } },
+    { label: "Cover Renewal", v: s.insExp, icon: ShieldAlert, search: { flag: "ins" } },
+    { label: "Service Due", v: s.maintDue, icon: CalendarClock, search: { flag: "maint" } },
   ];
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Fleet Dashboard"
-        subtitle="Live overview calculated from your vehicle records."
+        title="Operations Overview"
+        subtitle="A live view of fleet readiness, deployment and upcoming actions."
       />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         {kpis.map((k) => (
@@ -183,13 +183,13 @@ function Dashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Panel title="Vehicle Status Overview">
+        <Panel title="Fleet Readiness">
           <Donut data={s.status} />
         </Panel>
-        <Panel title="Ownership Overview">
+        <Panel title="Fleet Portfolio">
           <Donut data={s.own} />
         </Panel>
-        <Panel title="Vehicles by Project">
+        <Panel title="Units by Operation">
           <div className="h-56 p-3">
             {s.projects.length ? (
               <ResponsiveContainer>
@@ -213,10 +213,10 @@ function Dashboard() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel
-          title="Maintenance Due"
+          title="Service Schedule"
           action={
             <Link to="/maintenance" className="text-xs text-primary hover:underline">
-              All maintenance
+              View service plan
             </Link>
           }
         >
@@ -238,14 +238,14 @@ function Dashboard() {
           </ul>
         </Panel>
         <Panel
-          title="Compliance Alerts"
+          title="Readiness Alerts"
           action={
             <Link
               to="/reports"
               search={{ r: "compliance" }}
               className="text-xs text-primary hover:underline"
             >
-              Compliance report
+              View compliance insights
             </Link>
           }
         >
@@ -270,7 +270,7 @@ function Dashboard() {
             {!s.alerts.length && <EmptyState title="All compliance items are valid" />}
           </ul>
         </Panel>
-        <Panel title="Recently Added Vehicles">
+        <Panel title="Recently Registered Units">
           <ul className="divide-y">
             {s.recent.map((v) => {
               const vv = vehicleView(db, v);
@@ -286,7 +286,7 @@ function Dashboard() {
             })}
           </ul>
         </Panel>
-        <Panel title="Recent Activity">
+        <Panel title="Activity Stream">
           <ul className="max-h-72 divide-y overflow-y-auto">
             {db.activity.slice(0, 10).map((a) => (
               <li key={a.id} className="flex items-start justify-between gap-3 px-4 py-2.5 text-sm">
