@@ -1,0 +1,70 @@
+parameters:
+  - name: stageName
+    type: string
+    default: 'Staging_DAST_Stage'
+  - name: displayName
+    type: string
+    default: 'Stage 4: Staging Full Active DAST Scan'
+  - name: dependsOn
+    type: object
+  - name: condition
+    type: string
+    default: "and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.Reason'], 'Schedule')))"
+  - name: vmImage
+    type: string
+    default: 'ubuntu-latest'
+  - name: stagingUrl
+    type: string
+    default: ''
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: ${{ parameters.displayName }}
+    dependsOn: ${{ parameters.dependsOn }}
+    condition: ${{ parameters.condition }}
+    isSkippable: true
+    lockBehavior: sequential
+    pool:
+      vmImage: ${{ parameters.vmImage }}
+    jobs:
+      - job: StagingActiveDASTJob
+        displayName: 'Active DAST: OWASP ZAP Full Fuzzing Scan'
+        timeoutInMinutes: 45
+        steps:
+          - checkout: none
+
+          - bash: |
+              set -e
+              TARGET_URL="${{ parameters.stagingUrl }}"
+              if [ -z "$TARGET_URL" ]; then
+                TARGET_URL="$(STAGING_APP_URL)"
+              fi
+
+              if [ -z "$TARGET_URL" ] || [[ "$TARGET_URL" == \$\(* ]]; then
+                echo "##vso[task.logissue type=error]Staging URL is not configured. Set 'stagingUrl' in main.yml or define 'STAGING_APP_URL' in pipeline variables."
+                exit 1
+              fi
+
+              mkdir -p $(Build.ArtifactStagingDirectory)/staging-dast
+              chmod 777 $(Build.ArtifactStagingDirectory)/staging-dast
+
+              echo "Running OWASP ZAP Full Active DAST Scan against $TARGET_URL..."
+              docker run --rm \
+                -v "$(Build.ArtifactStagingDirectory)/staging-dast:/zap/wrk:rw" \
+                ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py \
+                  -t "$TARGET_URL" \
+                  -m 15 \
+                  -I \
+                  -r zap-full-report.html \
+                  -J zap-full-report.json
+            name: StagingZAPFullScanStep
+            displayName: 'OWASP ZAP: Full Active Fuzzing Scan on Staging'
+
+          - task: PublishPipelineArtifact@1
+            name: PublishStagingDASTTask
+            displayName: 'Publish Staging Active DAST Report'
+            condition: always()
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/staging-dast'
+              artifact: 'staging-dast-reports'
+              publishLocation: 'pipeline'
