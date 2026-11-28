@@ -4,7 +4,7 @@ resources:
   - repo: self
 
 extends:
-  template: ../templates/base-pipeline.yml
+  template: ./templates/base-pipeline.yml
   parameters:
     vmImage: 'ubuntu-latest'
     acrServiceConnection: 'azcrrdj'
