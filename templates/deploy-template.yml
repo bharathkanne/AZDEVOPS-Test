@@ -1,4 +1,3 @@
-
 parameters:
   - name: stageName
     type: string
@@ -64,8 +63,11 @@ stages:
               steps:
                 - ${{ if eq(parameters.verifyArtifact, true) }}:
                   - bash: |
+                      set -e
+                      MANIFEST_PATH="$(Pipeline.Workspace)/fleet-app-pipeline-artifact/image-manifest.json"
+                      test -f "$MANIFEST_PATH"
                       echo "Loaded manifest from auto-downloaded pipeline artifact:"
-                      cat $(Pipeline.Workspace)/fleet-app-pipeline-artifact/image-manifest.json
+                      cat "$MANIFEST_PATH"
                     displayName: 'Verify Auto-Downloaded Artifact Manifest'
 
                 - task: Docker@2
@@ -77,19 +79,29 @@ stages:
                 - bash: |
                     set -e
                     echo "Deploying immutable image ${{ parameters.fullImage }} to ${{ parameters.environmentName }}..."
-                    docker pull ${{ parameters.fullImage }}
-                    docker rm -f ${{ parameters.containerName }} 2>/dev/null || true
+                    docker pull "${{ parameters.fullImage }}"
+                    docker rm -f "${{ parameters.containerName }}" 2>/dev/null || true
                     docker run -d \
-                      --name ${{ parameters.containerName }} \
+                      --name "${{ parameters.containerName }}" \
                       --restart unless-stopped \
-                      -e NODE_ENV=${{ parameters.nodeEnv }} \
+                      -e NODE_ENV="${{ parameters.nodeEnv }}" \
                       -e APP_SECRET="$MAPPED_APP_SECRET" \
                       -e DB_CONNECTION_STRING="$MAPPED_DB_CONN" \
-                      -p ${{ parameters.hostPort }}:${{ parameters.containerPort }} \
-                      ${{ parameters.fullImage }}
-                    sleep 5
-                    docker ps --filter "name=${{ parameters.containerName }}"
-                    curl -f -I http://localhost:${{ parameters.hostPort }}
+                      -p "${{ parameters.hostPort }}:${{ parameters.containerPort }}" \
+                      "${{ parameters.fullImage }}"
+
+                    for i in $(seq 1 15); do
+                      if curl -sf -I "http://localhost:${{ parameters.hostPort }}" >/dev/null; then
+                        echo "Container healthy on port ${{ parameters.hostPort }}."
+                        docker ps --filter "name=${{ parameters.containerName }}"
+                        exit 0
+                      fi
+                      sleep 2
+                    done
+
+                    echo "##vso[task.logissue type=error]Container failed health check on port ${{ parameters.hostPort }}"
+                    docker logs "${{ parameters.containerName }}"
+                    exit 1
                   displayName: 'Deploy & Health-Check ${{ parameters.environmentName }} Container (${{ parameters.hostPort }})'
                   env:
                     MAPPED_APP_SECRET: $(APP-SECRET)
