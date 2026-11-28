@@ -181,7 +181,7 @@ function Page() {
 
   return (
     <div>
-      <PageHeader title="Reports" subtitle="Filter, search and export fleet data as CSV" />
+      <PageHeader title="Insights" subtitle="Explore, filter and export operational performance data" />
       <div className="grid gap-5 lg:grid-cols-[230px_1fr]">
         <Panel>
           <ul className="p-2">
@@ -221,7 +221,7 @@ function Page() {
               <Input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search report…"
+                placeholder="Search insights…"
                 className="h-9 pl-8"
               />
             </div>
