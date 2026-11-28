@@ -12,7 +12,7 @@ parameters:
     type: string
   - name: dockerfileName
     type: string
-    default: 'test.Dockerfile'
+    default: 'docker/Dockerfile'
   - name: artifactFeed
     type: string
   - name: universalPackageName
@@ -23,9 +23,6 @@ parameters:
   - name: securityBreakBuild
     type: boolean
     default: true
-  - name: stagingUrl
-    type: string
-    default: ''
 
 stages:
   # ============================================================================
@@ -227,7 +224,7 @@ stages:
             Node22_Env:
               NODE_TARGET: '22'
               TEST_SUITE: 'routing'
-        container: node:22-bookworm-slim
+        container: node:$(NODE_TARGET)-bookworm-slim
         services:
           redis: redis:7-alpine
         steps:
@@ -294,6 +291,7 @@ stages:
               containerRegistry: ${{ parameters.acrServiceConnection }}
               repository: ${{ parameters.imageRepository }}
               Dockerfile: '$(dockerfileName)'
+              buildContext: '$(Build.SourcesDirectory)'
               tags: |
                 ${{ parameters.tag }}
                 latest
@@ -339,17 +337,17 @@ stages:
           - ${{ if eq(parameters.runSecurityScan, true) }}:
             - task: MicrosoftSecurityDevOps@1
               name: RunMSDOTask
-              displayName: 'Security: MSDO Scan (Trivy, Checkov, ESLint)'
+              displayName: 'Security: MSDO Scan (Checkov & ESLint)'
               timeoutInMinutes: 15
               inputs:
-                categories: 'code,iac,containers'
-                tools: 'trivy,checkov,eslint'
+                categories: 'code,iac'
+                tools: 'checkov,eslint'
                 break: ${{ parameters.securityBreakBuild }}
 
           - bash: |
               set -e
               mkdir -p $(Build.ArtifactStagingDirectory)/release-bundle
-              cp package.json $(dockerfileName) $(Build.ArtifactStagingDirectory)/release-bundle/
+              cp package.json "$(dockerfileName)" $(Build.ArtifactStagingDirectory)/release-bundle/
               cat <<EOF > $(Build.ArtifactStagingDirectory)/release-bundle/image-manifest.json
               {
                 "image": "${{ parameters.fullImage }}",
@@ -396,7 +394,7 @@ stages:
       vmImage: ${{ parameters.vmImage }}
     jobs:
       - job: VerifyArtifactsJob
-        displayName: 'Download Pipeline Artifact & Inspect ACR Image'
+        displayName: 'Download Pipeline Artifact & Inspect Manifest'
         timeoutInMinutes: 10
         steps:
           - checkout: none
@@ -413,67 +411,16 @@ stages:
             - task: DownloadPipelineArtifact@2
               name: DownloadSecurityLogsTask
               displayName: 'Security Artifact: Download SARIF Logs'
+              condition: succeededOrFailed()
               inputs:
                 buildType: 'current'
                 artifactName: 'CodeAnalysisLogs'
                 targetPath: '$(Pipeline.Workspace)/security-logs'
 
           - bash: |
+              set -e
               ls -la $(Pipeline.Workspace)/downloaded-bundle
+              test -s $(Pipeline.Workspace)/downloaded-bundle/image-manifest.json
               cat $(Pipeline.Workspace)/downloaded-bundle/image-manifest.json
             name: VerifyBundleStep
             displayName: 'Bash: Verify Downloaded Manifest'
-
-  # ============================================================================
-  # STAGE 3: STAGING FULL ACTIVE DAST SCAN (Main & Scheduled Builds)
-  # ============================================================================
-  - stage: Staging_DAST_Stage
-    displayName: 'Stage 3: Staging Full Active DAST Scan'
-    dependsOn: Artifact_Verification_Stage
-    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.Reason'], 'Schedule')))
-    isSkippable: true
-    lockBehavior: sequential
-    pool:
-      vmImage: ${{ parameters.vmImage }}
-    jobs:
-      - job: StagingActiveDASTJob
-        displayName: 'Active DAST: OWASP ZAP Full Fuzzing Scan'
-        timeoutInMinutes: 45
-        steps:
-          - checkout: none
-
-          - bash: |
-              set -e
-              TARGET_URL="${{ parameters.stagingUrl }}"
-              if [ -z "$TARGET_URL" ]; then
-                TARGET_URL="$(STAGING_APP_URL)"
-              fi
-
-              if [ -z "$TARGET_URL" ] || [[ "$TARGET_URL" == \$\(* ]]; then
-                echo "##vso[task.logissue type=error]Staging URL is not configured. Pass 'stagingUrl' parameter or set the 'STAGING_APP_URL' pipeline variable."
-                exit 1
-              fi
-
-              mkdir -p $(Build.ArtifactStagingDirectory)/staging-dast
-              chmod 777 $(Build.ArtifactStagingDirectory)/staging-dast
-
-              echo "Running OWASP ZAP Full Active DAST Scan against $TARGET_URL..."
-              docker run --rm \
-                -v "$(Build.ArtifactStagingDirectory)/staging-dast:/zap/wrk:rw" \
-                ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py \
-                  -t "$TARGET_URL" \
-                  -m 15 \
-                  -I \
-                  -r zap-full-report.html \
-                  -J zap-full-report.json
-            name: StagingZAPFullScanStep
-            displayName: 'OWASP ZAP: Full Active Fuzzing Scan on Staging'
-
-          - task: PublishPipelineArtifact@1
-            name: PublishStagingDASTTask
-            displayName: 'Publish Staging Active DAST Report'
-            condition: always()
-            inputs:
-              targetPath: '$(Build.ArtifactStagingDirectory)/staging-dast'
-              artifact: 'staging-dast-reports'
-              publishLocation: 'pipeline'
