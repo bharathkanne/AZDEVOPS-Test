@@ -14,7 +14,7 @@ import { fmtNum, vehicleView } from "@/lib/fleet";
 export const Route = createFileRoute("/_authenticated/owners/$id")({
   head: ({ params }) => ({
     meta: [
-      { title: `Owner ${params.id} — Vehicle Management CMS` },
+      { title: `Owner ${params.id} — Fleet Ops` },
       { name: "description", content: "Owner details and vehicles owned." },
       { property: "og:title", content: `Owner ${params.id}` },
       { property: "og:description", content: "Owner details." },
