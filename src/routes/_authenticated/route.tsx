@@ -83,13 +83,13 @@ function Shell() {
           mini && "justify-center px-0",
         )}
       >
-        <img src="/fleetmark.svg" alt="Vehicle Management" className="h-8 w-8 shrink-0" />
+        <img src="/fleetmark.svg" alt="Fleet Ops" className="h-8 w-8 shrink-0" />
         {!mini && (
           <div className="leading-tight">
             <div className="text-sm font-semibold text-sidebar-accent-foreground">
-              Vehicle Management
+              Fleet Ops
             </div>
-            <div className="text-[11px] uppercase tracking-widest">CMS</div>
+            <div className="text-[11px] uppercase tracking-widest">FLEET MANAGEMENT</div>
           </div>
         )}
       </div>
