@@ -1,33 +1,53 @@
+# syntax=docker/dockerfile:1.7
+
 # ==============================================================================
 # STAGE 1: Build & Dependency Compilation
 # ==============================================================================
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-# Install dependencies cleanly from lockfile
+# Install dependencies strictly from lockfile
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci --legacy-peer-deps && npm cache clean --force
 
-# Copy source and build production bundle (e.g., Nitro / TypeScript)
+# Copy source and build production server bundle
 COPY . .
 ENV NITRO_PRESET=node-server
-RUN npm run build && npm prune --omit=dev
+RUN npm run build
 
 # ==============================================================================
-# STAGE 2: Minimal Non-Root Distroless Runtime
+# STAGE 2: Hardened Production Runtime
 # ==============================================================================
-FROM gcr.io/distroless/nodejs22-debian12:nonroot
+FROM node:22-alpine AS runtime
 WORKDIR /app
 
-ENV NODE_ENV=production
-ENV PORT=3000
+# Harden runtime environment and strip package managers (npm, npx, yarn, corepack)
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOST=0.0.0.0
 
-# Copy only compiled runtime output and production dependencies owned by nonroot (65532)
-COPY --from=builder --chown=nonroot:nonroot /app/.output ./.output
-COPY --from=builder --chown=nonroot:nonroot /app/package.json ./package.json
+RUN rm -rf \
+      /usr/local/lib/node_modules/npm \
+      /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm \
+      /usr/local/bin/npx \
+      /usr/local/bin/corepack \
+      /usr/local/bin/yarn \
+      /usr/local/bin/yarnpkg \
+      /opt/yarn*
 
-USER nonroot
+# Copy only compiled Nitro output and metadata with explicit non-root ownership
+COPY --from=builder --chown=node:node /app/.output ./.output
+COPY --from=builder --chown=node:node /app/package.json ./package.json
+
+# Enforce least-privilege execution (UID/GID 1000)
+USER node
+
 EXPOSE 3000
 
-# Distroless uses Node directly as entrypoint (no /bin/sh wrapper)
-CMD [".output/server/index.mjs"]
+# Native Node healthcheck (avoids installing curl/wget in runtime image)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/').then(r => process.exit(r.ok || r.status === 404 ? 0 : 1)).catch(() => process.exit(1))"
+
+# Exec form ensures PID 1 receives SIGTERM directly for graceful shutdowns
+CMD ["node", ".output/server/index.mjs"]
