@@ -494,7 +494,7 @@ export function seed(): DB {
       }))
       .reverse(),
     company: {
-      name: "Vehicle Management CMS",
+      name: "Fleet Ops",
       address: "1200 Commerce St, Houston, TX",
       phone: "(713) 555-0100",
       email: "fleet@company.local",
