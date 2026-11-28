@@ -15,7 +15,7 @@ import { daysUntil, expiryStatus, fmtDate } from "@/lib/fleet";
 export const Route = createFileRoute("/_authenticated/drivers/$id")({
   head: ({ params }) => ({
     meta: [
-      { title: `Driver ${params.id} — Vehicle Management CMS` },
+      { title: `Driver ${params.id} — Fleet Ops` },
       { name: "description", content: "Driver details and assignment history." },
       { property: "og:title", content: `Driver ${params.id}` },
       { property: "og:description", content: "Driver details." },
