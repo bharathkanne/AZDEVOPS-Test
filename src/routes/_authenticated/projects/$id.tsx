@@ -14,7 +14,7 @@ import { fmtDate } from "@/lib/fleet";
 export const Route = createFileRoute("/_authenticated/projects/$id")({
   head: ({ params }) => ({
     meta: [
-      { title: `Project ${params.id} — Vehicle Management CMS` },
+      { title: `Project ${params.id} — Fleet Ops` },
       { name: "description", content: "Project details with assigned vehicles and drivers." },
       { property: "og:title", content: `Project ${params.id}` },
       { property: "og:description", content: "Project details." },
