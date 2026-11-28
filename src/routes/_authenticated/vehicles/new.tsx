@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_authenticated/vehicles/new")({
   },
   head: () => ({
     meta: [
-      { title: "Add Vehicle — Vehicle Management CMS" },
+      { title: "Add Vehicle — Fleet Ops" },
       { name: "description", content: "Register a new fleet vehicle." },
       { property: "og:title", content: "Add Vehicle" },
       { property: "og:description", content: "Register a new fleet vehicle." },
