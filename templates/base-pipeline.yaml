@@ -10,7 +10,7 @@ parameters:
     type: string
   - name: dockerfileName
     type: string
-    default: 'test.Dockerfile'
+    default: 'docker/Dockerfile'
   - name: artifactFeed
     type: string
   - name: universalPackageName
@@ -61,9 +61,8 @@ stages:
       universalPackageName: ${{ parameters.universalPackageName }}
       runSecurityScan: ${{ parameters.runSecurityScan }}
       securityBreakBuild: ${{ parameters.securityBreakBuild }}
-      stagingUrl: ${{ parameters.stagingUrl }}
 
-  # Stage 3: Dev / Staging Deployment
+  # Stage 3: Deploy to Dev / Staging
   - template: deploy-template.yml
     parameters:
       stageName: 'Deploy_Dev_Stage'
@@ -84,7 +83,18 @@ stages:
       containerPort: ${{ parameters.containerPort }}
       verifyArtifact: true
 
-  # Stage 5: Production Deployment (Gated on Dev + Active DAST)
+  # Stage 4: Active DAST Scan Against Live Staging Target
+  - template: dast-template.yml
+    parameters:
+      stageName: 'Staging_DAST_Stage'
+      displayName: 'Stage 4: Staging Full Active DAST Scan'
+      dependsOn:
+        - Deploy_Dev_Stage
+      condition: and(succeeded('Deploy_Dev_Stage'), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.Reason'], 'Schedule')))
+      vmImage: ${{ parameters.vmImage }}
+      stagingUrl: ${{ parameters.stagingUrl }}
+
+  # Stage 5: Production Deployment (Gated on Dev + Active DAST + Manual Approval)
   - template: deploy-template.yml
     parameters:
       stageName: 'Deploy_Prod_Stage'
