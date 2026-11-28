@@ -297,9 +297,8 @@ stages:
           - bash: |
               set -e
               echo "Linting $(dockerfileName) with Hadolint..."
-              docker run --rm -i hadolint/hadolint:latest < $(dockerfileName)
-                hadolint --failure-threshold warning - < $(dockerfileName)
-
+              docker run --rm -i hadolint/hadolint:latest --failure-threshold warning - < "$(dockerfileName)"
+                
               echo "Scanning built ACR image for CRITICAL/HIGH OS & library CVEs..."
               docker run --rm \
                 -v /var/run/docker.sock:/var/run/docker.sock \
