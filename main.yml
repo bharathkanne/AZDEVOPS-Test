@@ -21,4 +21,3 @@ extends:
     prodUseVirtualMachine: false
     runSecurityScan: true
     securityBreakBuild: false
-    stagingUrl: 'https://staging.fleet-app.example.com'
