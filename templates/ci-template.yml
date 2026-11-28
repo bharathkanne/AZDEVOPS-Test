@@ -23,10 +23,13 @@ parameters:
   - name: securityBreakBuild
     type: boolean
     default: true
+  - name: stagingUrl
+    type: string
+    default: ''
 
 stages:
   # ============================================================================
-  # STAGE 1: CI (Secret Scan, SAST, SCA, Matrix Tests, ACR Push & Artifacts)
+  # STAGE 1: CI (Secret Scan, SAST, SCA, Matrix Tests, ACR Push & Image Scan)
   # ============================================================================
   - stage: CI_Stage
     displayName: 'Stage 1: CI Security Scan, Build & Artifacts'
@@ -263,7 +266,7 @@ stages:
             timeoutInMinutes: 5
 
       # ------------------------------------------------------------------------
-      # JOB 3: BUILD, ACR PUSH, HARDENING SCAN, MSDO & ARTIFACTS
+      # JOB 3: BUILD, ACR PUSH, CONTAINER IMAGE SCAN, MSDO & ARTIFACTS
       # ------------------------------------------------------------------------
       - job: BuildAndPublishArtifactsJob
         displayName: 'Push ACR Image & Publish Artifacts'
@@ -322,7 +325,7 @@ stages:
                   --exit-code 1 \
                   "${{ parameters.fullImage }}"
             name: ContainerHardeningScanStep
-            displayName: 'Security: Hadolint & Trivy Image Hardening Gate'
+            displayName: 'Security: Hadolint & Trivy Container Image Scan'
 
           - task: PublishPipelineArtifact@1
             name: PublishContainerReportTask
@@ -420,3 +423,57 @@ stages:
               cat $(Pipeline.Workspace)/downloaded-bundle/image-manifest.json
             name: VerifyBundleStep
             displayName: 'Bash: Verify Downloaded Manifest'
+
+  # ============================================================================
+  # STAGE 3: STAGING FULL ACTIVE DAST SCAN (Main & Scheduled Builds)
+  # ============================================================================
+  - stage: Staging_DAST_Stage
+    displayName: 'Stage 3: Staging Full Active DAST Scan'
+    dependsOn: Artifact_Verification_Stage
+    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.Reason'], 'Schedule')))
+    isSkippable: true
+    lockBehavior: sequential
+    pool:
+      vmImage: ${{ parameters.vmImage }}
+    jobs:
+      - job: StagingActiveDASTJob
+        displayName: 'Active DAST: OWASP ZAP Full Fuzzing Scan'
+        timeoutInMinutes: 45
+        steps:
+          - checkout: none
+
+          - bash: |
+              set -e
+              TARGET_URL="${{ parameters.stagingUrl }}"
+              if [ -z "$TARGET_URL" ]; then
+                TARGET_URL="$(STAGING_APP_URL)"
+              fi
+
+              if [ -z "$TARGET_URL" ] || [[ "$TARGET_URL" == \$\(* ]]; then
+                echo "##vso[task.logissue type=error]Staging URL is not configured. Pass 'stagingUrl' parameter or set the 'STAGING_APP_URL' pipeline variable."
+                exit 1
+              fi
+
+              mkdir -p $(Build.ArtifactStagingDirectory)/staging-dast
+              chmod 777 $(Build.ArtifactStagingDirectory)/staging-dast
+
+              echo "Running OWASP ZAP Full Active DAST Scan against $TARGET_URL..."
+              docker run --rm \
+                -v "$(Build.ArtifactStagingDirectory)/staging-dast:/zap/wrk:rw" \
+                ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py \
+                  -t "$TARGET_URL" \
+                  -m 15 \
+                  -I \
+                  -r zap-full-report.html \
+                  -J zap-full-report.json
+            name: StagingZAPFullScanStep
+            displayName: 'OWASP ZAP: Full Active Fuzzing Scan on Staging'
+
+          - task: PublishPipelineArtifact@1
+            name: PublishStagingDASTTask
+            displayName: 'Publish Staging Active DAST Report'
+            condition: always()
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/staging-dast'
+              artifact: 'staging-dast-reports'
+              publishLocation: 'pipeline'
