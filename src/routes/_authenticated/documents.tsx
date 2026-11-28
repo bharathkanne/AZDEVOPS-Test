@@ -32,9 +32,9 @@ function Page() {
   const rows = db.documents.filter((d) => !d.deleted);
   return (
     <EntityPage<DocumentRec>
-      title="Documents"
+      title="Records"
       singular="Document"
-      subtitle="Files are stored in this browser for the local version (max 1.5 MB each)"
+      subtitle="Centralized fleet records, certificates and supporting files"
       rows={rows}
       initialQuery={vehicle}
       columns={[
@@ -45,7 +45,7 @@ function Page() {
         },
         {
           key: "name",
-          label: "Document Name",
+          label: "Record Name",
           render: (r) => (
             <span className="flex items-center gap-2 font-medium">
               {r.name}
@@ -87,11 +87,11 @@ function Page() {
       ]}
       filter={{ key: "type", label: "Types", options: DOC_TYPES }}
       fields={[
-        { key: "id", label: "Document ID", required: true },
-        { key: "name", label: "Document Name", required: true },
+        { key: "id", label: "Record ID", required: true },
+        { key: "name", label: "Record Name", required: true },
         {
           key: "type",
-          label: "Document Type",
+          label: "Record Type",
           type: "select",
           required: true,
           options: DOC_TYPES.map((o) => ({ value: o, label: o })),
