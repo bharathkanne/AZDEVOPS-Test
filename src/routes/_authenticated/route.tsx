@@ -47,16 +47,16 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/vehicles", label: "Vehicles", icon: Truck },
-  { to: "/assets", label: "Assets", icon: Boxes },
-  { to: "/drivers", label: "Drivers", icon: IdCard },
-  { to: "/owners", label: "Owners", icon: Building2 },
-  { to: "/projects", label: "Projects", icon: FolderKanban },
-  { to: "/maintenance", label: "Maintenance", icon: Wrench },
-  { to: "/documents", label: "Documents", icon: FileText },
-  { to: "/reports", label: "Reports", icon: BarChart3 },
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/dashboard", label: "Overview", icon: Gauge },
+  { to: "/vehicles", label: "Fleet Register", icon: CarFront },
+  { to: "/assets", label: "Equipment", icon: PackageSearch },
+  { to: "/drivers", label: "Operators", icon: ContactRound },
+  { to: "/owners", label: "Partners", icon: Handshake },
+  { to: "/projects", label: "Operations", icon: MapPinned },
+  { to: "/maintenance", label: "Service Center", icon: Wrench },
+  { to: "/documents", label: "Records", icon: FolderOpen },
+  { to: "/reports", label: "Insights", icon: ChartNoAxesCombined },
+  { to: "/settings", label: "Workspace", icon: SlidersHorizontal },
 ] as const;
 
 function Shell() {
@@ -89,7 +89,7 @@ function Shell() {
             <div className="text-sm font-semibold text-sidebar-accent-foreground">
               Fleet Ops
             </div>
-            <div className="text-[11px] uppercase tracking-widest">FLEET MANAGEMENT</div>
+            <div className="text-[11px] uppercase tracking-widest">OPERATIONS PLATFORM</div>
           </div>
         )}
       </div>
@@ -210,7 +210,7 @@ function Shell() {
               <Input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search vehicle, VIN, plate…"
+                placeholder="Find unit, VIN or plate…"
                 className="h-9 bg-muted/60 pl-8"
               />
             </div>
