@@ -1,0 +1,15 @@
+.git
+.gitignore
+.azuredevops
+.vscode
+node_modules
+.output
+.nitro
+dist
+coverage
+*.log
+*.sarif
+.env
+.env.*
+osv-scanner.toml
+README.md
