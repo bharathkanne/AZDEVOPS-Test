@@ -9,7 +9,7 @@ import type { Maintenance } from "@/lib/types";
 export const Route = createFileRoute("/_authenticated/maintenance")({
   head: () => ({
     meta: [
-      { title: "Maintenance — Vehicle Management CMS" },
+      { title: "Maintenance — Fleet Ops" },
       { name: "description", content: "Service history, costs and upcoming maintenance." },
       { property: "og:title", content: "Maintenance" },
       { property: "og:description", content: "Service history." },
