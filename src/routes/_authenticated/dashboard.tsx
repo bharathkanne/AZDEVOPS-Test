@@ -38,12 +38,12 @@ import { EmptyState, PageHeader, Panel, StatusBadge } from "@/components/fleet/c
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard — Vehicle Management CMS" },
+      { title: "Dashboard — Fleet Ops" },
       {
         name: "description",
         content: "Fleet overview: status, ownership, compliance and maintenance.",
       },
-      { property: "og:title", content: "Dashboard — Vehicle Management CMS" },
+      { property: "og:title", content: "Dashboard — Fleet Ops" },
       { property: "og:description", content: "Fleet overview." },
     ],
   }),
