@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_authenticated/documents")({
   }),
   head: () => ({
     meta: [
-      { title: "Documents — Vehicle Management CMS" },
+      { title: "Documents — Fleet Ops" },
       {
         name: "description",
         content: "Registration, insurance, titles and other vehicle documents.",
