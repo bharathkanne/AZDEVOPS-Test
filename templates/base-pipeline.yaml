@@ -81,7 +81,7 @@ stages:
       verifyArtifact: true
 
   # Stage 4: Self-Contained Active DAST Scan (Option 2)
-  - template: dast-template.yml
+  - template: dast-template.yaml
     parameters:
       stageName: 'Staging_DAST_Stage'
       displayName: 'Stage 4: Staging Full Active DAST Scan'
