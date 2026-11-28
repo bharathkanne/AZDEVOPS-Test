@@ -28,15 +28,15 @@ function Page() {
     }));
   return (
     <EntityPage<Owner & { vehicles: number }>
-      title="Owners"
+      title="Partners"
       singular="Owner"
-      subtitle="Companies and lessors that own fleet vehicles"
+      subtitle="Ownership partners, leasing providers and fleet relationships"
       rows={rows}
       columns={[
-        { key: "id", label: "Owner ID" },
+        { key: "id", label: "Partner ID" },
         {
           key: "name",
-          label: "Owner Name",
+          label: "Partner Name",
           render: (r) => <span className="font-medium">{r.name}</span>,
         },
         { key: "company", label: "Company" },
@@ -49,8 +49,8 @@ function Page() {
       detail={(r) => <IdLink to="/owners/$id" id={r.id} />}
       filter={{ key: "ownershipType", label: "Types", options: [...OWNERSHIP_TYPES] }}
       fields={[
-        { key: "id", label: "Owner ID", required: true },
-        { key: "name", label: "Owner Name", required: true },
+        { key: "id", label: "Partner ID", required: true },
+        { key: "name", label: "Partner Name", required: true },
         { key: "company", label: "Company" },
         { key: "phone", label: "Phone" },
         { key: "email", label: "Email", type: "email" },
