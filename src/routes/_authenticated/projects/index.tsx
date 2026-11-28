@@ -30,15 +30,15 @@ function Page() {
     }));
   return (
     <EntityPage<Project & { vehicles: number }>
-      title="Projects"
+      title="Operations"
       singular="Project"
-      subtitle="Job sites and customer projects"
+      subtitle="Operational sites, customer programs and deployment windows"
       rows={rows}
       columns={[
-        { key: "id", label: "Project ID" },
+        { key: "id", label: "Operation ID" },
         {
           key: "name",
-          label: "Project Name",
+          label: "Operation Name",
           render: (r) => <span className="font-medium">{r.name}</span>,
         },
         { key: "customer", label: "Customer" },
@@ -51,8 +51,8 @@ function Page() {
       detail={(r) => <IdLink to="/projects/$id" id={r.id} />}
       filter={{ key: "status", label: "Statuses", options: ST }}
       fields={[
-        { key: "id", label: "Project ID", required: true },
-        { key: "name", label: "Project Name", required: true },
+        { key: "id", label: "Operation ID", required: true },
+        { key: "name", label: "Operation Name", required: true },
         { key: "customer", label: "Customer" },
         { key: "location", label: "Location" },
         { key: "startDate", label: "Start Date", type: "date" },
