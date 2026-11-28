@@ -20,9 +20,9 @@ export const Route = createFileRoute("/login")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Sign in — Vehicle Management CMS" },
+      { title: "Sign in — Fleet Ops" },
       { name: "description", content: "Sign in to manage your fleet vehicles and assets." },
-      { property: "og:title", content: "Sign in — Vehicle Management CMS" },
+      { property: "og:title", content: "Sign in — Fleet Ops" },
       { property: "og:description", content: "Sign in to manage your fleet vehicles and assets." },
     ],
   }),
@@ -59,8 +59,8 @@ function LoginPage() {
     <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
       <div className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-12 text-sidebar-foreground lg:flex">
         <div className="flex items-center gap-2.5 text-sidebar-accent-foreground">
-          <img src="/fleetmark.svg" alt="Vehicle Management" className="h-9 w-9" />
-          <span className="font-semibold">Vehicle Management CMS</span>
+          <img src="/fleetmark.svg" alt="Fleet Ops" className="h-9 w-9" />
+          <span className="font-semibold">Fleet Ops</span>
         </div>
         <div className="max-w-md">
           <h2 className="text-3xl font-semibold leading-tight text-sidebar-accent-foreground">
