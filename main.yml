@@ -10,7 +10,7 @@ extends:
     acrServiceConnection: 'azcrrdj'
     acrLoginServer: 'azuredevopsrdj.azurecr.io'
     imageRepository: 'fleet-app'
-    dockerfileName: 'docker/Test.Dockerfile'
+    dockerfileName: 'docker/test.Dockerfile'
     artifactFeed: 'fleet-appv1/fleet-app-feed1'
     universalPackageName: 'fleet-app-bundle'
     devVariableGroup: 'fleet-app-dev-vg'
