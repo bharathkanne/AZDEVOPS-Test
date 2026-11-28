@@ -1,14 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import {
-  Truck,
-  CheckCircle2,
+  CarFront,
+  CircleCheck,
   Wrench,
-  PauseCircle,
-  UserX,
-  FileWarning,
-  ShieldAlert,
-  CalendarClock,
+  CirclePause,
+  UserRoundX,
+  FileClock,
+  ShieldCheck,
+  CalendarCheck,
 } from "lucide-react";
 import {
   PieChart,
@@ -112,11 +112,11 @@ function Dashboard() {
   }, [db]);
 
   const kpis = [
-    { label: "Fleet Units", v: s.total, icon: Truck, search: {} },
+    { label: "Fleet Units", v: s.total, icon: CarFront, search: {} },
     {
       label: "In Service",
       v: s.active,
-      icon: CheckCircle2,
+      icon: CircleCheck,
       search: { status: "Active" },
       tone: "text-success",
     },
@@ -130,16 +130,16 @@ function Dashboard() {
     {
       label: "Available Units",
       v: s.idle,
-      icon: PauseCircle,
+      icon: CirclePause,
       search: { status: "Idle" },
       tone: "text-warning",
     },
-    { label: "Awaiting Allocation", v: s.unassigned, icon: UserX, search: { flag: "unassigned" } },
+    { label: "Awaiting Allocation", v: s.unassigned, icon: UserRoundX, search: { flag: "unassigned" } },
   ];
   const kpis2 = [
-    { label: "Registration Watch", v: s.regExp, icon: FileWarning, search: { flag: "reg" } },
-    { label: "Cover Renewal", v: s.insExp, icon: ShieldAlert, search: { flag: "ins" } },
-    { label: "Service Due", v: s.maintDue, icon: CalendarClock, search: { flag: "maint" } },
+    { label: "Registration Watch", v: s.regExp, icon: FileClock, search: { flag: "reg" } },
+    { label: "Cover Renewal", v: s.insExp, icon: ShieldCheck, search: { flag: "ins" } },
+    { label: "Service Due", v: s.maintDue, icon: CalendarCheck, search: { flag: "maint" } },
   ];
 
   return (
