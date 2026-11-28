@@ -84,7 +84,7 @@ stages:
       verifyArtifact: true
 
   # Stage 4: Active DAST Scan Against Live Staging Target
-  - template: dast-template.yml
+  - template: dast-template.yaml
     parameters:
       stageName: 'Staging_DAST_Stage'
       displayName: 'Stage 4: Staging Full Active DAST Scan'
