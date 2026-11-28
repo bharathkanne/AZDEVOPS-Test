@@ -21,7 +21,7 @@ export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
       { title: "Sign in — Fleet Ops" },
-      { name: "description", content: "Sign in to manage your fleet vehicles and assets." },
+      { name: "description", content: "Access your fleet operations workspace." },
       { property: "og:title", content: "Sign in — Fleet Ops" },
       { property: "og:description", content: "Sign in to manage your fleet vehicles and assets." },
     ],
@@ -64,7 +64,7 @@ function LoginPage() {
         </div>
         <div className="max-w-md">
           <h2 className="text-3xl font-semibold leading-tight text-sidebar-accent-foreground">
-            Know where every vehicle is, who drives it, and what it needs next.
+            Every unit. Every route. Every operation — in sync.
           </h2>
           <p className="mt-4 text-sm leading-relaxed">
             Ownership, assignments, compliance expiries and maintenance history — one record per
@@ -72,7 +72,7 @@ function LoginPage() {
           </p>
         </div>
         <div className="grid grid-cols-3 gap-6 border-t border-sidebar-border pt-6 text-xs">
-          {["Assignments", "Compliance", "Maintenance"].map((t) => (
+          {["Dispatch", "Readiness", "Service"].map((t) => (
             <div key={t}>
               <div className="mb-2 h-0.5 w-8 bg-primary" />
               {t}
@@ -83,9 +83,9 @@ function LoginPage() {
       <div className="flex items-center justify-center p-6">
         <form onSubmit={submit} className="w-full max-w-sm space-y-5">
           <div>
-            <h1 className="text-2xl font-semibold">Sign in</h1>
+            <h1 className="text-2xl font-semibold">Welcome back</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Use your fleet account to continue.
+              Sign in to your operations workspace.
             </p>
           </div>
           <div className="space-y-1.5">
