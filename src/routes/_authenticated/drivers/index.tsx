@@ -9,7 +9,7 @@ import type { Driver } from "@/lib/types";
 export const Route = createFileRoute("/_authenticated/drivers/")({
   head: () => ({
     meta: [
-      { title: "Drivers — Vehicle Management CMS" },
+      { title: "Drivers — Fleet Ops" },
       { name: "description", content: "Driver roster, licenses and assignments." },
       { property: "og:title", content: "Drivers" },
       { property: "og:description", content: "Driver roster." },
