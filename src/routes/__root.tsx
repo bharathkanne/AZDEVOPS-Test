@@ -75,12 +75,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Vehicle Management CMS" },
+      { title: "Fleet Ops" },
       {
         name: "description",
         content: "Manage fleet vehicles, assets, drivers, projects, compliance and maintenance.",
       },
-      { property: "og:title", content: "Vehicle Management CMS" },
+      { property: "og:title", content: "Fleet Ops" },
       {
         property: "og:description",
         content: "Manage fleet vehicles, assets, drivers, projects, compliance and maintenance.",
