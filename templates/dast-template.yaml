@@ -13,9 +13,10 @@ parameters:
   - name: vmImage
     type: string
     default: 'ubuntu-latest'
-  - name: stagingUrl
+  - name: acrServiceConnection
     type: string
-    default: ''
+  - name: fullImage
+    type: string
 
 stages:
   - stage: ${{ parameters.stageName }}
@@ -33,32 +34,61 @@ stages:
         steps:
           - checkout: none
 
+          - task: Docker@2
+            name: LoginACRStep
+            displayName: 'Login to ACR'
+            inputs:
+              command: 'login'
+              containerRegistry: ${{ parameters.acrServiceConnection }}
+
           - bash: |
               set -e
-              TARGET_URL="${{ parameters.stagingUrl }}"
-              if [ -z "$TARGET_URL" ]; then
-                TARGET_URL="$(STAGING_APP_URL)"
-              fi
-
-              if [ -z "$TARGET_URL" ] || [[ "$TARGET_URL" == \$\(* ]]; then
-                echo "##vso[task.logissue type=error]Staging URL is not configured. Set 'stagingUrl' in main.yml or define 'STAGING_APP_URL' in pipeline variables."
-                exit 1
-              fi
-
               mkdir -p $(Build.ArtifactStagingDirectory)/staging-dast
               chmod 777 $(Build.ArtifactStagingDirectory)/staging-dast
 
-              echo "Running OWASP ZAP Full Active DAST Scan against $TARGET_URL..."
+              cleanup() {
+                echo "Cleaning up ephemeral DAST containers and network..."
+                docker rm -f dast-app dast-redis >/dev/null 2>&1 || true
+                docker network rm dast-net >/dev/null 2>&1 || true
+              }
+              trap cleanup EXIT
+
+              echo "1. Starting isolated network, Redis, and target container (${{ parameters.fullImage }})..."
+              docker network create dast-net
+              docker run -d --name dast-redis --network dast-net --network-alias redis redis:7-alpine
+              docker run -d --name dast-app --network dast-net --network-alias fleet-app \
+                -e NODE_ENV=production \
+                -e PORT=3000 \
+                -e HOST=0.0.0.0 \
+                -e REDIS_HOST=redis \
+                "${{ parameters.fullImage }}"
+
+              echo "2. Waiting for fleet-app to respond on port 3000..."
+              for i in $(seq 1 20); do
+                if docker run --rm --network dast-net curlimages/curl:latest -sf http://fleet-app:3000/ >/dev/null 2>&1; then
+                  echo "Target container is reachable."
+                  break
+                fi
+                if [ "$i" -eq 20 ]; then
+                  echo "##vso[task.logissue type=error]Timed out waiting for fleet-app container to start."
+                  docker logs dast-app
+                  exit 1
+                fi
+                sleep 2
+              done
+
+              echo "3. Running OWASP ZAP Full Active Scan..."
               docker run --rm \
+                --network dast-net \
                 -v "$(Build.ArtifactStagingDirectory)/staging-dast:/zap/wrk:rw" \
                 ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py \
-                  -t "$TARGET_URL" \
-                  -m 15 \
+                  -t http://fleet-app:3000 \
+                  -m 10 \
                   -I \
                   -r zap-full-report.html \
                   -J zap-full-report.json
             name: StagingZAPFullScanStep
-            displayName: 'OWASP ZAP: Full Active Fuzzing Scan on Staging'
+            displayName: 'OWASP ZAP: Full Active Scan Against Container'
 
           - task: PublishPipelineArtifact@1
             name: PublishStagingDASTTask
@@ -68,3 +98,11 @@ stages:
               targetPath: '$(Build.ArtifactStagingDirectory)/staging-dast'
               artifact: 'staging-dast-reports'
               publishLocation: 'pipeline'
+
+          - task: Docker@2
+            name: LogoutACRStep
+            displayName: 'Logout from ACR'
+            condition: always()
+            inputs:
+              command: 'logout'
+              containerRegistry: ${{ parameters.acrServiceConnection }}
