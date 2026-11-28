@@ -165,8 +165,8 @@ function VehiclesPage() {
   return (
     <div>
       <PageHeader
-        title="Vehicles"
-        subtitle={`${liveVehicles(db).length} vehicles in the fleet`}
+        title="Fleet Register"
+        subtitle={`${liveVehicles(db).length} units in your fleet`}
         actions={
           <>
             <Button
@@ -216,7 +216,7 @@ function VehiclesPage() {
               defaultValue={search.q}
               key={search.q}
               onChange={(e) => setS({ q: e.target.value || undefined })}
-              placeholder="ID, asset, VIN, plate, make, owner, driver, project…"
+              placeholder="Search unit, asset tag, VIN, plate or operator…"
               className="h-9 pl-8"
             />
           </div>
@@ -388,7 +388,7 @@ function VehiclesPage() {
           </table>
           {!cur.length && (
             <EmptyState
-              title="No vehicles match"
+              title="No units match your search"
               hint={active ? "Try clearing filters." : "Add your first vehicle to get started."}
             />
           )}
