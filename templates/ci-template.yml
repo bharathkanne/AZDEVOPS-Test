@@ -263,7 +263,7 @@ stages:
             timeoutInMinutes: 5
 
       # ------------------------------------------------------------------------
-      # JOB 3: BUILD, ACR PUSH, MSDO SCAN & ARTIFACTS
+      # JOB 3: BUILD, ACR PUSH, HARDENING SCAN, MSDO & ARTIFACTS
       # ------------------------------------------------------------------------
       - job: BuildAndPublishArtifactsJob
         displayName: 'Push ACR Image & Publish Artifacts'
@@ -294,6 +294,7 @@ stages:
               tags: |
                 ${{ parameters.tag }}
                 latest
+
           - bash: |
               set -e
               echo "Linting $(dockerfileName) with Hadolint..."
